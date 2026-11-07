@@ -84,3 +84,7 @@ export function formatEthiopianDate(gregorianDate: Date | string): string {
     return String(gregorianDate);
   }
 }
+
+export function toEthiopianDateString(gregorianDate: Date | string): string {
+  return formatEthiopianDate(gregorianDate);
+}
