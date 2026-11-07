@@ -1,0 +1,623 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGEMENT
+  TEACHER
+  STUDENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AcademicYearStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum OfferingStatus {
+  PLANNED
+  ACTIVE
+  GRADES_PENDING
+  COMPLETED
+  ARCHIVED
+}
+
+enum GradeSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum AssessmentType {
+  ATTENDANCE_DISCIPLINE    // ክትትል እና ስነ-ምግባር
+  HOMEWORK_ASSIGNMENT      // የቤት ስራ እና የክፍል ተሳትፎ
+  QUIZ                     // ፈጣን ፈተና (Quiz)
+  MIDTERM_EXAM             // አጋማሽ ፈተና
+  FINAL_EXAM               // የማጠቃለያ ፈተና
+  PROJECT                  // ጥናት እና ምርምር
+  PRACTICAL_LITURGY        // ተግባራዊ ዜማ እና ሥርዓተ ቤተክርስቲያን
+}
+
+enum NotificationType {
+  COURSE_ASSIGNED          // አዲስ የኮርስ ምደባ
+  REGISTRATION_CONFIRMED   // አዲስ የትምህርት ዘመን ምዝገባ
+  DEADLINE_APPROACHING     // የውጤት ማስረከቢያ ቀነ-ገደብ መቃረብ
+  GRADE_SUBMITTED          // የውጤት ማስረከብ ተጠናቋል
+  GRADE_REJECTED           // የቀረበው ውጤት ውድቅ ተደርጓል
+  GRADE_APPROVED           // ውጤቱ ጸድቋል
+  RESULTS_PUBLISHED        // ውጤት በይፋ ታትሟል
+  ENROLLMENT_CONFIRMED     // የኮርስ ምዝገባ ማረጋገጫ
+  ANNOUNCEMENT             // ጠቅላላ ማስታወቂያ
+  SYSTEM                   // የስርዓት መልእክት
+}
+
+// ==========================================
+// CORE IDENTITY & USER MODELS
+// ==========================================
+
+model User {
+  id              String         @id @default(uuid())
+  email           String?        @unique
+  username        String         @unique
+  passwordHash    String
+  role            UserRole       @default(STUDENT)
+  firstName       String         // መጠሪያ ስም
+  lastName        String         // የአባት ስም
+  grandfatherName String?        // የአያት ስም
+  phone           String?        @unique
+  isActive        Boolean        @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Profiles (1:1 per role)
+  studentProfile     Student?
+  teacherProfile     Teacher?
+  managementProfile  ManagementProfile?
+
+  // Auditing & Workflow Interactions
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  submittedGrades     GradeSubmission[]  @relation("SubmittedBy")
+  publishedGrades     GradeSubmission[]  @relation("GradePublishedBy")
+  gradeApprovals      GradeApproval[]    @relation("ApprovedBy")
+  recordedGrades      Grade[]            @relation("GradeRecordedBy")
+  createdGradingSchemes GradingScheme[]           @relation("SchemeCreatedBy")
+  gradeSnapshots        GradeCalculationSnapshot[] @relation("SnapshotCreatedBy")
+
+  @@index([role])
+  @@index([username])
+  @@index([phone])
+  @@map("users")
+}
+
+// ==========================================
+// ACADEMIC STRUCTURE (Immutable Snapshots)
+// ==========================================
+
+model AcademicYear {
+  id          String             @id @default(uuid())
+  name        String             @unique // e.g., "2016 ዓ.ም."
+  code        String             @unique // e.g., "AY-2016-EC"
+  startDate   DateTime
+  endDate     DateTime
+  isCurrent   Boolean            @default(false)
+  status      AcademicYearStatus @default(ACTIVE)
+  description String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relationships
+  batches         Batch[]
+  courseOfferings CourseOffering[]
+  students        Student[]
+  registrations   StudentRegistration[]
+
+  @@index([isCurrent])
+  @@index([status])
+  @@map("academic_years")
+}
+
+model Batch {
+  id              String        @id @default(uuid())
+  academicYearId  String
+  name            String        // e.g., "ምድብ 1 - ሕፃናት", "ምድብ 2 - ወጣቶች"
+  code            String        // e.g., "B-2016-Y1"
+  stageLevel      String        // e.g., "ደረጃ 1", "ደረጃ 2"
+  description     String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Rule 2: A batch belongs to exactly one academic year
+  academicYear    AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  // Relationships
+  students        Student[]
+  courseOfferings CourseOffering[]
+  registrations   StudentRegistration[]
+
+  @@unique([academicYearId, code])
+  @@index([academicYearId])
+  @@map("batches")
+}
+
+// ==========================================
+// USER PROFILES
+// ==========================================
+
+model Student {
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  academicYearId  String        // Initial/Registered Academic Year
+  batchId         String        // Rule 3: Students are registered under a specific batch
+  admissionNumber String        @unique // e.g., "STU-2016-0001"
+  baptismalName   String?       // የክርስትና ስም
+  gender          Gender
+  dateOfBirth     DateTime?
+  guardianName    String?       // የወላጅ / የአሳዳጊ ስም
+  guardianPhone   String?       // የወላጅ ስልክ
+  emergencyContact String?
+  address         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academicYear    AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  batch           Batch         @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  enrollments     StudentEnrollment[]
+  grades          Grade[]
+  registrations   StudentRegistration[]
+
+  @@index([admissionNumber])
+  @@index([batchId])
+  @@index([academicYearId])
+  @@map("students")
+}
+
+model Teacher {
+  id              String              @id @default(uuid())
+  userId          String              @unique
+  teacherCode     String              @unique // e.g., "TCH-001"
+  spiritualTitle  String?             // e.g., "ዲያቆን", "ቀሲስ", "መምህር"
+  qualification   String?             // የትምህርት ደረጃ
+  specialization  String?             // የትምህርት ክፍል (ዜማ፣ ታሪክ፣ ወዘተ)
+  joinedDate      DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Rule 6: One teacher can have multiple course assignments
+  assignments     TeacherAssignment[]
+
+  @@index([teacherCode])
+  @@map("teachers")
+}
+
+model ManagementProfile {
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  department      String        // e.g., "የትምህርት ክፍል", "የገንዘብ ክፍል"
+  positionTitle   String        // e.g., "ሊቀ መንበር", "ዋና ፀሐፊ"
+  officePhone     String?
+  appointedDate   DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("management_profiles")
+}
+
+// ==========================================
+// COURSE CATALOG & OFFERINGS
+// ==========================================
+
+model Course {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g., "CRS-DOGMA-101"
+  title       String           // e.g., "ነገረ ሃይማኖት 1"
+  amharicTitle String          // የአማርኛ መጠሪያ
+  description String?
+  creditHours Int              @default(2)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Rule 5: One course can have multiple offerings across academic years and batches
+  offerings   CourseOffering[]
+
+  @@index([code])
+  @@map("courses")
+}
+
+model CourseOffering {
+  id              String              @id @default(uuid())
+  courseId        String
+  academicYearId  String
+  batchId         String
+  termSemester    String              @default("1") // e.g., "1ኛ መንፈቅ", "2ኛ መንፈቅ"
+  status          OfferingStatus      @default(ACTIVE)
+  gradeDeadline   DateTime?           // የውጤት ማስረከቢያ የመጨረሻ ቀን (Grade submission deadline)
+  isSubmissionOpen Boolean            @default(true) // ውጤት ማስገቢያ ክፍት/ዝግ መሆኑን መቆጣጠሪያ
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  // Rule 4: Course offerings belong to a specific academic year and batch
+  course          Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicYear    AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  batch           Batch               @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  // Relationships
+  teacherAssignments TeacherAssignment[]
+  enrollments        StudentEnrollment[]
+  assessments        Assessment[]
+  gradeSubmissions   GradeSubmission[]
+  gradingSchemes     CourseGradingScheme[]
+  gradeSnapshots     GradeCalculationSnapshot[]
+
+  // Ensure one course isn't offered multiple times in the same batch & term
+  @@unique([courseId, academicYearId, batchId, termSemester])
+  @@index([academicYearId])
+  @@index([batchId])
+  @@index([status])
+  @@map("course_offerings")
+}
+
+model TeacherAssignment {
+  id                String         @id @default(uuid())
+  teacherId         String
+  courseOfferingId  String
+  isPrimary         Boolean        @default(true)
+  assignedAt        DateTime       @default(now())
+
+  teacher           Teacher        @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  courseOffering    CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, courseOfferingId])
+  @@index([teacherId])
+  @@index([courseOfferingId])
+  @@map("teacher_assignments")
+}
+
+// ==========================================
+// ENROLLMENT & CONTINUOUS ASSESSMENT
+// ==========================================
+
+model StudentEnrollment {
+  id                String         @id @default(uuid())
+  studentId         String
+  courseOfferingId  String
+  enrolledAt        DateTime       @default(now())
+  finalNumericScore Decimal?       @db.Decimal(5, 2)
+  finalLetterGrade  String?        // e.g., "A", "B", "C"
+  isPassed          Boolean?
+  remarks           String?
+
+  student           Student        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  courseOffering    CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+
+  grades            Grade[]
+
+  // Rule 10: Prevent duplicate student enrollment in the same course offering
+  @@unique([studentId, courseOfferingId])
+  @@index([studentId])
+  @@index([courseOfferingId])
+  @@map("student_enrollments")
+}
+
+model StudentRegistration {
+  id              String        @id @default(uuid())
+  studentId       String
+  academicYearId  String
+  batchId         String
+  status          String        @default("ACTIVE") // ACTIVE, PROMOTED, COMPLETED, TRANSFERRED
+  registeredAt    DateTime      @default(now())
+
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear    AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  batch           Batch         @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, academicYearId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([batchId])
+  @@map("student_registrations")
+}
+
+model Assessment {
+  id                String          @id @default(uuid())
+  courseOfferingId  String
+  name              String          // e.g., "የክፍል ፈተና 1"
+  type              AssessmentType  @default(HOMEWORK_ASSIGNMENT)
+  maxScore          Decimal         @db.Decimal(5, 2) // e.g., 30.00
+  weightPercentage  Decimal         @db.Decimal(5, 2) // e.g., 30.00%
+  description       String?
+  displayOrder      Int             @default(1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  courseOffering    CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  grades            Grade[]
+
+  @@unique([courseOfferingId, name])
+  @@index([courseOfferingId])
+  @@map("assessments")
+}
+
+// ==========================================
+// GRADES & APPROVAL WORKFLOW
+// ==========================================
+
+model Grade {
+  id                String            @id @default(uuid())
+  enrollmentId      String            // Rule 8: Grades must reference correct enrollment
+  assessmentId      String            // Rule 8: and assessment
+  studentId         String            // Cached for direct querying
+  scoreObtained     Decimal           @db.Decimal(5, 2)
+  isExempt          Boolean           @default(false)
+  feedback          String?
+  recordedById      String            // User who entered the score
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  enrollment        StudentEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  assessment        Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  recordedBy        User              @relation("GradeRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  // Prevent duplicate grade entry for the same assessment and enrollment
+  @@unique([enrollmentId, assessmentId])
+  @@index([studentId])
+  @@index([assessmentId])
+  @@index([enrollmentId])
+  @@map("grades")
+}
+
+model GradeSubmission {
+  id                String                @id @default(uuid())
+  courseOfferingId  String
+  submittedById     String                // Teacher User who submitted
+  status            GradeSubmissionStatus @default(DRAFT)
+  submissionDate    DateTime?
+  rejectionReason   String?               // Mandatory reason in Amharic if rejected
+  version           Int                   @default(1)
+  notes             String?
+  publishedAt       DateTime?
+  publishedById     String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  courseOffering    CourseOffering        @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+  submittedBy       User                  @relation("SubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  publishedBy       User?                 @relation("GradePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  approvals         GradeApproval[]
+
+  @@index([courseOfferingId])
+  @@index([status])
+  @@index([publishedById])
+  @@map("grade_submissions")
+}
+
+model GradeApproval {
+  id                String            @id @default(uuid())
+  gradeSubmissionId String
+  approvedById      String            // Admin User who reviewed
+  decision          ApprovalDecision
+  comments          String?           // Comments in Amharic
+  decidedAt         DateTime          @default(now())
+
+  gradeSubmission   GradeSubmission   @relation(fields: [gradeSubmissionId], references: [id], onDelete: Restrict)
+  approvedBy        User              @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([gradeSubmissionId])
+  @@index([approvedById])
+  @@map("grade_approvals")
+}
+
+// ==========================================
+// GRADING SCALE & SYSTEM CONFIG
+// ==========================================
+
+model GradingScale {
+  id              String        @id @default(uuid())
+  letterGrade     String        @unique // e.g., "A+", "A", "B", "C", "D", "F"
+  amharicLabel    String        // e.g., "እጅግ በጣም ጥሩ", "በጣም ጥሩ", "ጥሩ", "አጥጋቢ", "የሚሻሻል"
+  minScore        Decimal       @db.Decimal(5, 2)
+  maxScore        Decimal       @db.Decimal(5, 2)
+  gradePoint      Decimal       @db.Decimal(3, 2) // e.g., 4.00, 3.75, 3.00
+  isPassing       Boolean       @default(true)
+  displayOrder    Int           @default(1)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([minScore, maxScore])
+  @@map("grading_scales")
+}
+
+// ==========================================
+// NOTIFICATIONS & AUDIT LOGS
+// ==========================================
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  type        NotificationType @default(SYSTEM)
+  title       String           // የአማርኛ ርዕስ
+  message     String           // የአማርኛ ዝርዝር መልእክት
+  linkUrl     String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String        @id @default(uuid())
+  userId      String?
+  action      String        // e.g., "CREATE_ACADEMIC_YEAR", "APPROVE_GRADES"
+  entityName  String        // e.g., "GradeSubmission", "User"
+  entityId    String?
+  details     Json?         // JSON snapshot of previous/new values
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime      @default(now())
+
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityName])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// PHASE 4A: ADVANCED GRADING SCHEME MANAGEMENT
+// ==========================================
+
+model GradingScheme {
+  id              String                 @id @default(uuid())
+  name            String                 @unique // e.g., "መደበኛ ምዘና (Standard Assessment)"
+  description     String?
+  status          String                 @default("ACTIVE") // ACTIVE, ARCHIVED, DRAFT
+  createdById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  createdBy       User?                  @relation("SchemeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  versions        GradingSchemeVersion[]
+  appliedSchemes  CourseGradingScheme[]
+
+  @@index([status])
+  @@map("grading_schemes")
+}
+
+model GradingSchemeVersion {
+  id              String                 @id @default(uuid())
+  schemeId        String
+  versionNumber   Int                    @default(1)
+  description     String?                // Version notes / change summary
+  status          String                 @default("ACTIVE") // ACTIVE, SUPERSEDED, ARCHIVED
+  isLatest        Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+
+  scheme          GradingScheme          @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  components      GradingComponent[]
+  appliedSchemes  CourseGradingScheme[]
+
+  @@unique([schemeId, versionNumber])
+  @@index([schemeId])
+  @@map("grading_scheme_versions")
+}
+
+model GradingComponent {
+  id              String                 @id @default(uuid())
+  versionId       String
+  name            String                 // e.g., "አጋማሽ ፈተና", "የቤት ሥራ 1"
+  percentage      Decimal                @db.Decimal(5, 2) // Weight percentage (e.g. 20.00%)
+  defaultMaxScore Decimal                @default(100.00) @db.Decimal(5, 2)
+  orderIndex      Int                    @default(1)
+  type            AssessmentType         @default(HOMEWORK_ASSIGNMENT)
+  description     String?
+  createdAt       DateTime               @default(now())
+
+  version         GradingSchemeVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, name])
+  @@index([versionId])
+  @@map("grading_components")
+}
+
+model CourseGradingScheme {
+  id                String                    @id @default(uuid())
+  courseOfferingId  String
+  originSchemeId    String?                   // Reference to template scheme (informational)
+  originVersionId   String?                   // Reference to template version (informational)
+  name              String                    // Name of the scheme applied to this course
+  versionNumber     Int                       @default(1)
+  isActive          Boolean                   @default(true)
+  totalWeight       Decimal                   @default(100.00) @db.Decimal(5, 2)
+  appliedById       String?
+  appliedAt         DateTime                  @default(now())
+  changeReason      String?                   // Reason for modifying this course configuration
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  courseOffering    CourseOffering            @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  originScheme      GradingScheme?            @relation(fields: [originSchemeId], references: [id], onDelete: SetNull)
+  originVersion     GradingSchemeVersion?     @relation(fields: [originVersionId], references: [id], onDelete: SetNull)
+  components        CourseGradingComponent[]
+  snapshots         GradeCalculationSnapshot[]
+
+  @@unique([courseOfferingId, versionNumber])
+  @@index([courseOfferingId])
+  @@index([isActive])
+  @@map("course_grading_schemes")
+}
+
+model CourseGradingComponent {
+  id                    String              @id @default(uuid())
+  courseGradingSchemeId String
+  name                  String              // e.g., "አጋማሽ ፈተና"
+  percentage            Decimal             @db.Decimal(5, 2)
+  maxScore              Decimal             @default(100.00) @db.Decimal(5, 2)
+  orderIndex            Int                 @default(1)
+  type                  AssessmentType      @default(HOMEWORK_ASSIGNMENT)
+  assessmentId          String?             // Link to concrete Assessment table record
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  courseGradingScheme   CourseGradingScheme @relation(fields: [courseGradingSchemeId], references: [id], onDelete: Cascade)
+
+  @@unique([courseGradingSchemeId, name])
+  @@index([courseGradingSchemeId])
+  @@map("course_grading_components")
+}
+
+model GradeCalculationSnapshot {
+  id                    String               @id @default(uuid())
+  courseOfferingId      String
+  courseGradingSchemeId String?
+  reason                String               // e.g., "BEFORE_SCHEME_UPDATE", "GRADE_RECALCULATION", "FINAL_APPROVAL"
+  snapshotData          Json                 // JSON snapshot of student grades, scores, components and weights
+  studentCount          Int                  @default(0)
+  createdById           String?
+  createdAt             DateTime             @default(now())
+
+  courseOffering        CourseOffering       @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseGradingScheme   CourseGradingScheme? @relation(fields: [courseGradingSchemeId], references: [id], onDelete: SetNull)
+  createdBy             User?                @relation("SnapshotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([courseOfferingId])
+  @@index([createdAt])
+  @@map("grade_calculation_snapshots")
+}

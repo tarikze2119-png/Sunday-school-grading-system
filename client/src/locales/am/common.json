@@ -1,0 +1,22 @@
+{
+  "systemTitle": "የሰንበት ትምህርት ቤት የተማሪዎች ውጤት አስተዳደር ሥርዓት",
+  "academicYear": "የትምህርት ዘመን",
+  "batch": "የተማሪዎች ምድብ (ክፍል)",
+  "course": "የትምህርት ዓይነት",
+  "teacher": "መምህር",
+  "student": "ተማሪ",
+  "grade": "ውጤት",
+  "status": "ሁኔታ",
+  "actions": "ተግባራት",
+  "save": "አስቀምጥ",
+  "cancel": "ሰርዝ",
+  "edit": "አስተካክል",
+  "delete": "አስወግድ",
+  "submit": "አስገባ",
+  "confirm": "አረጋግጥ",
+  "search": "ፈልግ...",
+  "filter": "አጣራ",
+  "export": "አውርድ (Export)",
+  "loading": "በመጫን ላይ...",
+  "noData": "ምንም የተገኘ መረጃ የለም"
+}

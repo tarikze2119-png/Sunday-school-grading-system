@@ -1,0 +1,20 @@
+{
+  "draft": "ረቂቅ (ያልቀረበ)",
+  "submitted": "ለአስተዳዳሪ የቀረበ (በመጠባበቅ ላይ)",
+  "approved": "የጸደቀ (የታተመ)",
+  "rejected": "የተመለሰ (ውድቅ የተደረገ)",
+  "saveDraft": "ረቂቁን አስቀምጥ",
+  "submitForApproval": "ለማጽደቅ አቅርብ",
+  "approveGrade": "ውጤቱን አጽድቅ",
+  "rejectGrade": "ምክንያት በመግለጽ መልስ",
+  "rejectionReason": "የመልስ ምክንያት (በአማርኛ)",
+  "scoreOutOf": "ከ {max} ነጥብ",
+  "totalScore": "ጠቅላላ ውጤት",
+  "letterGrade": "የደረጃ ፊደል",
+  "passed": "ያለፈ",
+  "failed": "ያላለፈ (የሚደገም)",
+  "attendanceDiscipline": "ክትትል እና ስነ-ምግባር",
+  "homeworkAssignment": "የቤት ስራ እና ተሳትፎ",
+  "midtermExam": "የመንፈቅ አጋማሽ ፈተና",
+  "finalExam": "የማጠቃለያ ፈተና"
+}

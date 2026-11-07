@@ -1,0 +1,40 @@
+{
+  "name": "sunday-school-grading-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sunday School Student Grading Management System (የሰንበት ትምህርት ቤት የተማሪዎች ውጤት አስተዳደር ሥርዓት)",
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:server && npm run build:client",
+    "start": "npm run start --prefix server",
+    "prisma:generate": "npm run prisma:generate --prefix server",
+    "prisma:migrate": "npm run prisma:migrate --prefix server",
+    "prisma:deploy": "npm run prisma:deploy --prefix server",
+    "prisma:seed": "npm run prisma:seed --prefix server",
+    "prisma:studio": "npm run prisma:studio --prefix server",
+    "test:grading": "npm run test:grading --prefix server",
+    "test:scheme": "npm run test:scheme --prefix server",
+    "test:phase4b": "npm run test:phase4b --prefix server",
+    "test:phase6": "npm run test:phase6 --prefix server",
+    "test:security": "npm run test:security --prefix server",
+    "test:scenarios": "npm run test:scenarios --prefix server",
+    "test:qa": "npm run test:qa --prefix server",
+    "test:frontend": "npm run test:frontend --prefix server",
+    "test:all": "npm run test:all --prefix server"
+  },
+  "keywords": [
+    "sunday-school",
+    "grading-management",
+    "amharic",
+    "react",
+    "express",
+    "postgresql",
+    "prisma"
+  ],
+  "author": "",
+  "license": "ISC"
+}

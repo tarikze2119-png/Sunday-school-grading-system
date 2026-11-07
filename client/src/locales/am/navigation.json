@@ -1,0 +1,16 @@
+{
+  "dashboard": "ዳሽቦርድ (ዋና ገጽ)",
+  "academicYears": "የትምህርት ዘመናት",
+  "batches": "የተማሪዎች ምድቦች",
+  "courses": "የኮርሶች ዝርዝር",
+  "courseOfferings": "የኮርስ ምደባዎች",
+  "students": "ተማሪዎች",
+  "teachers": "መምህራን",
+  "gradeEntry": "ውጤት መመዝገቢያ",
+  "gradeApprovals": "የቀረቡ ውጤቶች ማጽደቂያ",
+  "studentResults": "የግል የውጤት ካርድ",
+  "reports": "ሪፖርቶችና ስታቲስቲክስ",
+  "auditLogs": "የሲስተም እንቅስቃሴ መዝገብ",
+  "settings": "ማስተካከያዎች",
+  "logout": "ውጣ"
+}
