@@ -4,17 +4,20 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: 'primary' | 'secondary' | 'gold' | 'danger' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
+  loading?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',
   isLoading = false,
+  loading = false,
   children,
   className = '',
   disabled,
   ...props
 }) => {
+  const isBusy = isLoading || loading;
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const sizeStyles = {
@@ -33,11 +36,11 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      disabled={disabled || isLoading}
+      disabled={disabled || isBusy}
       className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
       {...props}
     >
-      {isLoading ? (
+      {isBusy ? (
         <span className="flex items-center gap-2">
           <svg className="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

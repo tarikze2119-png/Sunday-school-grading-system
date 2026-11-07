@@ -807,7 +807,7 @@ export class GradeService {
       const studentName = `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`;
       for (const assessment of offering.assessments) {
         const grade = enrollment.grades.find((g) => g.assessmentId === assessment.id);
-        if (!grade && !grade?.isExempt) {
+        if (!grade) {
           missingEntries.push(`${studentName} (${assessment.name})`);
         }
       }

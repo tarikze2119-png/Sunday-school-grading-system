@@ -37,6 +37,9 @@ export const academicService = {
     const res = await api.get<{ success: boolean; data: AcademicYearData[] }>('/academic/years');
     return res.data.data;
   },
+  getAcademicYears: async () => {
+    return academicService.getYears();
+  },
   createYear: async (data: { name: string; code: string; startDate: string; endDate: string; isCurrent?: boolean; description?: string }) => {
     const res = await api.post<{ success: boolean; message: string; data: AcademicYearData }>('/academic/years', data);
     return res.data;

@@ -42,3 +42,8 @@ export interface CourseOffering {
   academicYear?: AcademicYear;
   batch?: Batch;
 }
+
+export type CourseOfferingItem = any;
+export type BatchItem = any;
+export type AcademicYearItem = any;
+export type { StudentListItem } from '../services/studentService';

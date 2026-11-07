@@ -35,12 +35,17 @@ export interface StudentListItem {
 }
 
 export const studentService = {
-  list: async (params?: { academicYearId?: string; batchId?: string; search?: string; isActive?: boolean; page?: number }) => {
+  list: async (params?: { academicYearId?: string; batchId?: string; search?: string; isActive?: boolean; page?: number; limit?: number }) => {
     const res = await api.get<{
       success: boolean;
       data: { total: number; page: number; totalPages: number; students: StudentListItem[] };
     }>('/students', { params });
     return res.data.data;
+  },
+
+  getStudents: async (params?: { academicYearId?: string; batchId?: string; search?: string; isActive?: boolean; page?: number; limit?: number }): Promise<StudentListItem[]> => {
+    const res = await studentService.list(params);
+    return res?.students || [];
   },
 
   register: async (data: any) => {

@@ -998,7 +998,7 @@ export class GradingSchemeService {
           courseOfferingId,
           courseTitle: offering.course.title,
           previousVersionNumber: activeScheme?.versionNumber || 0,
-          newVersionNumber,
+          newVersionNumber: nextVersionNumber,
           changeReason: input.changeReason,
           componentCount: input.components.length,
           hadGrades: totalGrades > 0,

@@ -67,6 +67,10 @@ export const gradeService = {
     return res.data.data;
   },
 
+  getTeacherAssignedCourses: async (): Promise<TeacherCourseCard[]> => {
+    return gradeService.getTeacherCourses();
+  },
+
   getOfferingGradeSheet: async (offeringId: string): Promise<CourseOfferingGradeSheet> => {
     const res = await api.get(`/grades/offerings/${offeringId}/sheet`);
     return res.data.data;

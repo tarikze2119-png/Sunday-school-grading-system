@@ -15,7 +15,13 @@ export const createApp = (): Express => {
   // CORS configuration
   app.use(
     cors({
-      origin: ENV.CLIENT_URL,
+      origin: (origin, callback) => {
+        if (!origin || origin === ENV.CLIENT_URL || origin.endsWith('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -27,8 +33,10 @@ export const createApp = (): Express => {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  // Master API router
+  // Master API router (supports both /api/v1 and direct /api prefixes)
   app.use('/api/v1', apiRouter);
+  app.use('/api', apiRouter);
+  app.use('/', apiRouter);
 
   // 404 handler for undefined API routes
   app.use('*', (req, res) => {

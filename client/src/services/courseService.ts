@@ -43,6 +43,10 @@ export const courseService = {
     return res.data.data;
   },
 
+  getCourses: async (search?: string) => {
+    return courseService.listCourses(search);
+  },
+
   createCourse: async (data: { code: string; title: string; amharicTitle: string; creditHours?: number; description?: string }) => {
     const res = await api.post<{ success: boolean; message: string; data: CourseData }>('/courses', data);
     return res.data;
@@ -52,6 +56,10 @@ export const courseService = {
   listOfferings: async (params?: { academicYearId?: string; batchId?: string; teacherId?: string }) => {
     const res = await api.get<{ success: boolean; data: CourseOfferingData[] }>('/courses/offerings/list', { params });
     return res.data.data;
+  },
+
+  getCourseOfferings: async (params?: { academicYearId?: string; batchId?: string; teacherId?: string }) => {
+    return courseService.listOfferings(params);
   },
 
   createOffering: async (data: { courseId: string; academicYearId: string; batchId: string; termSemester?: string; primaryTeacherId?: string }) => {

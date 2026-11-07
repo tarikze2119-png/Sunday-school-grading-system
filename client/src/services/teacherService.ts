@@ -38,6 +38,11 @@ export const teacherService = {
     return res.data.data;
   },
 
+  getTeachers: async (params?: { search?: string; page?: number; limit?: number }): Promise<TeacherListItem[]> => {
+    const res = await teacherService.list(params);
+    return res?.teachers || [];
+  },
+
   register: async (data: any) => {
     const res = await api.post<{ success: boolean; message: string; data: TeacherListItem }>('/teachers', data);
     return res.data;

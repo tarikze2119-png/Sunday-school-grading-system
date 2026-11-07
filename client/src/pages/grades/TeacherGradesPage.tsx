@@ -23,7 +23,8 @@ import {
   FileSpreadsheet, 
   Info,
   Smartphone,
-  LayoutGrid
+  LayoutGrid,
+  ShieldCheck
 } from 'lucide-react';
 
 export const TeacherGradesPage: React.FC = () => {
