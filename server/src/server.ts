@@ -1,7 +1,5 @@
-import { createApp } from './app.js';
+import app = require('./app.js');
 import { ENV } from './config/env.config.js';
-
-const app = createApp();
 
 if (!process.env.VERCEL) {
   const server = app.listen(ENV.PORT, () => {
@@ -21,4 +19,5 @@ if (!process.env.VERCEL) {
   });
 }
 
-export default app;
+export = app;
+

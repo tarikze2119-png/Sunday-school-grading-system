@@ -6,7 +6,7 @@ import { ENV } from './config/env.config.js';
 import apiRouter from './routes/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
-export const createApp = (): Express => {
+const createApp = (): Express => {
   const app = express();
 
   // Security headers
@@ -52,4 +52,12 @@ export const createApp = (): Express => {
   return app;
 };
 
-export default createApp;
+const app = createApp();
+
+// Universal export interop: ensures require('./app.js') is directly the Express app function
+// while also supporting .default, .app, and .createApp for any consumer
+(app as any).default = app;
+(app as any).app = app;
+(app as any).createApp = createApp;
+
+export = app;
