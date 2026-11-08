@@ -248,7 +248,7 @@ async function main() {
   console.log('4. Seeding Pre-Configured Users for all 5 roles...');
 
   // ROLE 1: SUPER_ADMIN
-  const superAdminPass = await bcrypt.hash('Admin@SundaySchool2026', 12);
+  const superAdminPass = await bcrypt.hash(process.env.SEED_SUPERADMIN_PASSWORD || 'Admin@SundaySchool2026', 12);
   await prisma.user.upsert({
     where: { username: 'superadmin' },
     update: { passwordHash: superAdminPass },
@@ -265,7 +265,7 @@ async function main() {
   });
 
   // ROLE 2: ADMIN
-  const adminPass = await bcrypt.hash('Admin@2026', 12);
+  const adminPass = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || 'Admin@2026', 12);
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin_mulugeta' },
     update: { passwordHash: adminPass },
@@ -282,7 +282,7 @@ async function main() {
   });
 
   // ROLE 3: MANAGEMENT
-  const mgmtPass = await bcrypt.hash('Mgmt@2026', 12);
+  const mgmtPass = await bcrypt.hash(process.env.SEED_MGMT_PASSWORD || 'Mgmt@2026', 12);
   const mgmtUser = await prisma.user.upsert({
     where: { username: 'mgmt_berhanu' },
     update: { passwordHash: mgmtPass },
@@ -310,7 +310,7 @@ async function main() {
   });
 
   // ROLE 4: TEACHER
-  const teacherPass = await bcrypt.hash('Teacher@2026', 12);
+  const teacherPass = await bcrypt.hash(process.env.SEED_TEACHER_PASSWORD || 'Teacher@2026', 12);
   const teacherUser = await prisma.user.upsert({
     where: { username: 'teacher_tekle' },
     update: { passwordHash: teacherPass },
@@ -339,7 +339,7 @@ async function main() {
   });
 
   // ROLE 5: STUDENT
-  const studentPass = await bcrypt.hash('Student@2026', 12);
+  const studentPass = await bcrypt.hash(process.env.SEED_STUDENT_PASSWORD || 'Student@2026', 12);
   const studentUser = await prisma.user.upsert({
     where: { username: 'student_yohannes' },
     update: { passwordHash: studentPass },
@@ -447,18 +447,23 @@ async function main() {
     },
   });
 
-  await prisma.gradeSubmission.create({
-    data: {
-      courseOfferingId: offering2015Dogma.id,
-      submittedById: teacherUser.id,
-      status: GradeSubmissionStatus.PUBLISHED,
-      submissionDate: new Date('2023-01-20'),
-      publishedAt: new Date('2023-01-25'),
-      publishedById: adminUser.id,
-      version: 1,
-      notes: 'የ2015 ዓ.ም. የተጠናቀቀ እና ይፋ የሆነ ውጤት',
-    },
+  const existingSub2015Dogma = await prisma.gradeSubmission.findFirst({
+    where: { courseOfferingId: offering2015Dogma.id, version: 1 },
   });
+  if (!existingSub2015Dogma) {
+    await prisma.gradeSubmission.create({
+      data: {
+        courseOfferingId: offering2015Dogma.id,
+        submittedById: teacherUser.id,
+        status: GradeSubmissionStatus.PUBLISHED,
+        submissionDate: new Date('2023-01-20'),
+        publishedAt: new Date('2023-01-25'),
+        publishedById: adminUser.id,
+        version: 1,
+        notes: 'የ2015 ዓ.ም. የተጠናቀቀ እና ይፋ የሆነ ውጤት',
+      },
+    });
+  }
 
   const offering2015Liturgy = await prisma.courseOffering.upsert({
     where: {
@@ -500,18 +505,23 @@ async function main() {
     },
   });
 
-  await prisma.gradeSubmission.create({
-    data: {
-      courseOfferingId: offering2015Liturgy.id,
-      submittedById: teacherUser.id,
-      status: GradeSubmissionStatus.PUBLISHED,
-      submissionDate: new Date('2023-01-22'),
-      publishedAt: new Date('2023-01-26'),
-      publishedById: adminUser.id,
-      version: 1,
-      notes: 'የ2015 ዓ.ም. የዜማ ትምህርት ይፋዊ ውጤት',
-    },
+  const existingSub2015Liturgy = await prisma.gradeSubmission.findFirst({
+    where: { courseOfferingId: offering2015Liturgy.id, version: 1 },
   });
+  if (!existingSub2015Liturgy) {
+    await prisma.gradeSubmission.create({
+      data: {
+        courseOfferingId: offering2015Liturgy.id,
+        submittedById: teacherUser.id,
+        status: GradeSubmissionStatus.PUBLISHED,
+        submissionDate: new Date('2023-01-22'),
+        publishedAt: new Date('2023-01-26'),
+        publishedById: adminUser.id,
+        version: 1,
+        notes: 'የ2015 ዓ.ም. የዜማ ትምህርት ይፋዊ ውጤት',
+      },
+    });
+  }
 
   // 5. Seed Course Offering 1: ነገረ ሃይማኖት ፩ (In SUBMITTED review state)
   console.log('5. Seeding Course Offerings, Teacher Assignments, Assessments & Grades...');
@@ -625,16 +635,21 @@ async function main() {
   }
 
   // Create GradeSubmission in SUBMITTED state for Admin review
-  await prisma.gradeSubmission.create({
-    data: {
-      courseOfferingId: offeringDogma.id,
-      submittedById: teacherUser.id,
-      status: GradeSubmissionStatus.SUBMITTED,
-      submissionDate: new Date(),
-      version: 1,
-      notes: 'የመንፈቀ ዓመቱ የተማሪዎች ውጤት ለማጽደቂያ ቀርቧል',
-    },
+  const existingSubDogma = await prisma.gradeSubmission.findFirst({
+    where: { courseOfferingId: offeringDogma.id, version: 1 },
   });
+  if (!existingSubDogma) {
+    await prisma.gradeSubmission.create({
+      data: {
+        courseOfferingId: offeringDogma.id,
+        submittedById: teacherUser.id,
+        status: GradeSubmissionStatus.SUBMITTED,
+        submissionDate: new Date(),
+        version: 1,
+        notes: 'የመንፈቀ ዓመቱ የተማሪዎች ውጤት ለማጽደቂያ ቀርቧል',
+      },
+    });
+  }
 
   // 6. Seed Course Offering 2: የቤተክርስቲያን ታሪክ ፩ (In PUBLISHED state so student sees immediate results)
   const offeringHistory = await prisma.courseOffering.upsert({
@@ -731,33 +746,47 @@ async function main() {
   }
 
   // Create GradeSubmission in PUBLISHED state
-  const publishedSub = await prisma.gradeSubmission.create({
-    data: {
-      courseOfferingId: offeringHistory.id,
-      submittedById: teacherUser.id,
-      status: GradeSubmissionStatus.PUBLISHED,
-      submissionDate: new Date('2024-01-15'),
-      publishedAt: new Date('2024-01-18'),
-      publishedById: adminUser.id,
-      version: 1,
-      notes: 'የጸደቀ እና የታተመ ይፋዊ ውጤት',
-    },
+  let publishedSub = await prisma.gradeSubmission.findFirst({
+    where: { courseOfferingId: offeringHistory.id, version: 1 },
   });
+  if (!publishedSub) {
+    publishedSub = await prisma.gradeSubmission.create({
+      data: {
+        courseOfferingId: offeringHistory.id,
+        submittedById: teacherUser.id,
+        status: GradeSubmissionStatus.PUBLISHED,
+        submissionDate: new Date('2024-01-15'),
+        publishedAt: new Date('2024-01-18'),
+        publishedById: adminUser.id,
+        version: 1,
+        notes: 'የጸደቀ እና የታተመ ይፋዊ ውጤት',
+      },
+    });
+  }
 
-  await prisma.gradeApproval.create({
-    data: {
-      gradeSubmissionId: publishedSub.id,
-      approvedById: adminUser.id,
-      decision: ApprovalDecision.APPROVED,
-      comments: 'ውጤቱ በሙሉ ተረጋግጦ ጸድቋል',
-      decidedAt: new Date('2024-01-17'),
-    },
+  const existingApproval = await prisma.gradeApproval.findFirst({
+    where: { gradeSubmissionId: publishedSub.id },
   });
+  if (!existingApproval) {
+    await prisma.gradeApproval.create({
+      data: {
+        gradeSubmissionId: publishedSub.id,
+        approvedById: adminUser.id,
+        decision: ApprovalDecision.APPROVED,
+        comments: 'ውጤቱ በሙሉ ተረጋግጦ ጸድቋል',
+        decidedAt: new Date('2024-01-17'),
+      },
+    });
+  }
 
   // 7. Seed In-App Notifications for Roles (Phase 6)
   console.log('7. Seeding Role-Targeted In-App Notifications...');
-  await prisma.notification.createMany({
-    data: [
+  const existingNotifs = await prisma.notification.count({
+    where: { userId: teacherUser.id },
+  });
+  if (existingNotifs === 0) {
+    await prisma.notification.createMany({
+      data: [
       {
         userId: teacherUser.id,
         type: 'COURSE_ASSIGNED',
@@ -808,11 +837,16 @@ async function main() {
       },
     ],
   });
+  }
 
   // 8. Seed Audit History Log Entries (Phase 6)
   console.log('8. Seeding Audit History Logs...');
-  await prisma.auditLog.createMany({
-    data: [
+  const existingLogs = await prisma.auditLog.count({
+    where: { userId: adminUser.id },
+  });
+  if (existingLogs === 0) {
+    await prisma.auditLog.createMany({
+      data: [
       {
         userId: adminUser.id,
         action: 'CREATE_ACADEMIC_YEAR',
@@ -857,6 +891,7 @@ async function main() {
       },
     ],
   });
+  }
 
   // 12. Seed Phase 4A Reusable Grading Scheme Templates
   console.log('12. Creating Phase 4A reusable grading scheme templates...');

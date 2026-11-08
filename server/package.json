@@ -16,11 +16,15 @@
     "test:frontend": "node --experimental-strip-types src/tests/frontendVerification.test.ts",
     "test:all": "node --experimental-strip-types src/tests/gradeWorkflow.test.ts && node --experimental-strip-types src/tests/phase4aGradingScheme.test.ts && node --experimental-strip-types src/tests/phase4bIntegration.test.ts && node --experimental-strip-types src/tests/phase6Workflow.test.ts && node --experimental-strip-types src/tests/securityVerification.test.ts && node --experimental-strip-types src/tests/functionalScenarios.test.ts && node --experimental-strip-types src/tests/qaFullSystemReview.test.ts && node --experimental-strip-types src/tests/frontendVerification.test.ts",
     "build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
     "start": "node dist/server.js",
+    "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:bootstrap": "tsx prisma/bootstrapSuperAdmin.ts",
+    "bootstrap:superadmin": "tsx prisma/bootstrapSuperAdmin.ts",
     "prisma:studio": "prisma studio"
   },
   "prisma": {

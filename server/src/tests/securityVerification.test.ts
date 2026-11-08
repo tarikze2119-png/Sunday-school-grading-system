@@ -270,14 +270,15 @@ async function runSecurityTests() {
     const isWrongMatch = pureCrypto.compare('WrongPassword@123', hash);
     assert.strictEqual(isWrongMatch, false, 'Cryptographic compare rejects invalid password');
 
-    // Minimum length validation
+    // Minimum length validation (consistent 12-character minimum)
     const validatePasswordStrength = (pass: string) => {
-      if (pass.length < 8) return { valid: false, message: 'የይለፍ ቃል ቢያንስ 8 ፊደላት/ቁጥሮች መሆን አለበት' };
+      if (pass.length < 12) return { valid: false, message: 'የይለፍ ቃል ቢያንስ 12 ፊደላት/ቁጥሮች መሆን አለበት' };
       return { valid: true };
     };
 
     assert.strictEqual(validatePasswordStrength('12345').valid, false);
-    assert.strictEqual(validatePasswordStrength('Admin@2026').valid, true);
+    assert.strictEqual(validatePasswordStrength('Short@123').valid, false);
+    assert.strictEqual(validatePasswordStrength('Admin@SundaySchool2026').valid, true);
 
     console.log('  ✅ PASS: 8. Password security (Bcrypt 12 rounds, irreversible hash, strength validation)');
   }

@@ -12,10 +12,15 @@
     "build": "npm run build:server && npm run build:client",
     "start": "npm run start --prefix server",
     "prisma:generate": "npm run prisma:generate --prefix server",
+    "prisma:validate": "npm run prisma:validate --prefix server",
     "prisma:migrate": "npm run prisma:migrate --prefix server",
     "prisma:deploy": "npm run prisma:deploy --prefix server",
     "prisma:seed": "npm run prisma:seed --prefix server",
+    "bootstrap:superadmin": "npm run bootstrap:superadmin --prefix server",
     "prisma:studio": "npm run prisma:studio --prefix server",
+    "neon:plan": "neon config plan",
+    "neon:deploy": "neon deploy",
+    "neon:env": "neon env pull",
     "test:grading": "npm run test:grading --prefix server",
     "test:scheme": "npm run test:scheme --prefix server",
     "test:phase4b": "npm run test:phase4b --prefix server",
@@ -36,5 +41,9 @@
     "prisma"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@neon/config": "^1.13.0",
+    "@neon/env": "^2.1.0"
+  }
 }

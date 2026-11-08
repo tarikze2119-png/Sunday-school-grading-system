@@ -151,8 +151,8 @@ export class AuthService {
       throw error;
     }
 
-    if (newPass.length < 8) {
-      const error: any = new Error('አዲሱ የይለፍ ቃል ቢያንስ 8 ፊደላት ወይም ቁጥሮች መያዝ አለበት።');
+    if (newPass.length < 12) {
+      const error: any = new Error('አዲሱ የይለፍ ቃል ቢያንስ 12 ፊደላት ወይም ቁጥሮች መያዝ አለበት።');
       error.statusCode = 400;
       throw error;
     }
@@ -200,8 +200,8 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string
   ) {
-    if (!newPass || newPass.length < 8) {
-      const error: any = new Error('አዲሱ የይለፍ ቃል ቢያንስ 8 ፊደላት መሆን አለበት።');
+    if (!newPass || newPass.length < 12) {
+      const error: any = new Error('አዲሱ የይለፍ ቃል ቢያንስ 12 ፊደላት መሆን አለበት።');
       error.statusCode = 400;
       throw error;
     }
