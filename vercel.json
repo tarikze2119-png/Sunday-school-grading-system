@@ -7,7 +7,9 @@
     },
     "api": {
       "root": "server",
-      "framework": "express"
+      "framework": "express",
+      "buildCommand": "npm run build",
+      "entrypoint": "app.js"
     }
   },
   "rewrites": [
