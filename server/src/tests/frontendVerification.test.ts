@@ -8,6 +8,7 @@
  * 4. Mobile Responsiveness (Drawer, Grid, Zero-Overflow, Dual-Mode Grade Sheet)
  * 5. Official Printable Report Card & Multi-Year Transcript Layouts
  * 6. API Client Interceptors & Amharic Network Error Handling
+ * 7. Vercel SPA Routing Configuration & Static Asset Preservation
  */
 
 import assert from 'node:assert';
@@ -142,8 +143,53 @@ async function runFrontendVerificationTests() {
     passed++;
   }
 
+  // ---------------------------------------------------------------------------
+  // 7. Vercel SPA Routing Configuration & Static Asset Preservation
+  // ---------------------------------------------------------------------------
+  {
+    const vercelJsonPath = path.resolve(rootDir, 'vercel.json');
+    assert(fs.existsSync(vercelJsonPath), 'Root vercel.json must exist');
+    const vercelConfig = JSON.parse(fs.readFileSync(vercelJsonPath, 'utf8'));
+
+    // Check services definition
+    assert(vercelConfig.services?.web, 'services.web must be defined');
+    assert.strictEqual(vercelConfig.services.web.root, 'client', 'services.web.root must be client');
+    assert.strictEqual(vercelConfig.services.web.framework, 'vite', 'services.web.framework must be vite');
+    assert(Array.isArray(vercelConfig.services.web.rewrites), 'services.web.rewrites must be an array');
+    assert(
+      vercelConfig.services.web.rewrites.some((r: any) => r.source === '/(.*)' && r.destination === '/index.html'),
+      'services.web.rewrites must contain SPA fallback to /index.html'
+    );
+
+    // Check API service
+    assert(vercelConfig.services?.api, 'services.api must be defined');
+    assert.strictEqual(vercelConfig.services.api.root, 'server', 'services.api.root must be server');
+    assert.strictEqual(vercelConfig.services.api.framework, 'express', 'services.api.framework must be express');
+
+    // Check client/vercel.json fallback
+    const clientVercelJsonPath = path.resolve(rootDir, 'client/vercel.json');
+    assert(fs.existsSync(clientVercelJsonPath), 'client/vercel.json must exist');
+    const clientVercelConfig = JSON.parse(fs.readFileSync(clientVercelJsonPath, 'utf8'));
+    assert(Array.isArray(clientVercelConfig.rewrites), 'client/vercel.json rewrites must be an array');
+    assert(
+      clientVercelConfig.rewrites.some((r: any) => r.source === '/(.*)' && r.destination === '/index.html'),
+      'client/vercel.json rewrites must contain SPA fallback to /index.html'
+    );
+
+    // Check top-level rewrites
+    assert(Array.isArray(vercelConfig.rewrites), 'top-level rewrites must be an array');
+    assert.strictEqual(vercelConfig.rewrites[0]?.source, '/api/(.*)', 'First rewrite must target /api/(.*)');
+    assert.strictEqual(vercelConfig.rewrites[0]?.destination?.service, 'api', 'First rewrite destination must be service: api');
+    assert.strictEqual(vercelConfig.rewrites[1]?.source, '/(.*)', 'Second rewrite must target /(.*)');
+    assert.strictEqual(vercelConfig.rewrites[1]?.destination?.service, 'web', 'Second rewrite destination must be service: web');
+    assert(!vercelConfig.rewrites[1]?.destination?.path, 'Second rewrite destination must not hardcode path: /index.html to preserve static assets');
+
+    console.log('  ✅ 7. Vercel SPA routing configuration and static asset preservation verified');
+    passed++;
+  }
+
   console.log('\n================================================================================');
-  console.log(`🎉 ALL ${passed}/6 FRONTEND ARCHITECTURAL & UI TEST SUITES PASSED!`);
+  console.log(`🎉 ALL ${passed}/7 FRONTEND ARCHITECTURAL & UI TEST SUITES PASSED!`);
   console.log('================================================================================\n');
 }
 
