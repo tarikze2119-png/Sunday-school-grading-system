@@ -44,16 +44,27 @@ export const ReportCardModal: React.FC<Props> = ({ transcript, onClose }) => {
         {/* ========================================================= */}
         <div className="p-8 sm:p-12 space-y-6 print:p-8" id="printable-report-card">
           {/* Church Header */}
-          <div className="text-center space-y-1.5 border-b-2 border-brand-900 pb-5">
-            <div className="inline-block px-3 py-1 bg-brand-50 text-brand-900 rounded-full text-xs font-bold tracking-wide uppercase">
-              በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን
+          <div className="text-center space-y-2 border-b-2 border-brand-900 pb-5">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="w-14 h-14 rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-sm overflow-hidden p-1 shrink-0">
+                <img
+                  src="/assets/haimote-abraham-logo.png"
+                  alt="ሐይመተ አብርሃም ሰንበት ትምህርት ቤት ሎጎ"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="text-left">
+                <div className="inline-block px-3 py-0.5 bg-brand-50 text-brand-900 rounded-full text-[10px] font-bold tracking-wide uppercase">
+                  በስመ አብ ወወልድ ወመንፈስ ቅዱስ አሐዱ አምላክ አሜን
+                </div>
+                <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                  የኢትዮጵያ ኦርቶዶክስ ተዋሕዶ ቤተክርስቲያን
+                </h1>
+                <h2 className="text-sm sm:text-base font-bold text-brand-800">
+                  ሐይመተ አብርሃም ሰንበት ትምህርት ቤት የተማሪ የውጤት ካርድ
+                </h2>
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              የኢትዮጵያ ኦርቶዶክስ ተዋሕዶ ቤተክርስቲያን
-            </h1>
-            <h2 className="text-base sm:text-lg font-bold text-brand-800">
-              የሰንበት ትምህርት ቤት የተማሪ የውጤት ካርድ (Student Academic Report Card)
-            </h2>
             <p className="text-xs text-slate-500">
               ይፋዊ የአካዳሚክ እና የስነ-ምግባር ውጤት ማረጋገጫ ሰነድ
             </p>

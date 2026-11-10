@@ -214,6 +214,85 @@ export class ReportController {
         ]);
         csvData = reportService.generateExcelCsv(headers, rows);
         filename = `submission_progress_${Date.now()}.csv`;
+      } else if (reportType === 'batch-performance') {
+        const data = await reportService.getBatchWisePerformance(filters);
+        const headers = ['ምድብ', 'ደረጃ', 'የትምህርት ዘመን', 'የተማሪ ብዛት', 'የኮርስ ብዛት', 'አማካይ ውጤት', 'የማለፍ ምጣኔ'];
+        const rows = data.map((d) => [
+          d.batchName,
+          d.stageLevel,
+          d.academicYearName,
+          d.totalStudents,
+          d.totalCourses,
+          `${d.averageScore}%`,
+          d.passRate,
+        ]);
+        csvData = reportService.generateExcelCsv(headers, rows);
+        filename = `batch_performance_${Date.now()}.csv`;
+      } else if (reportType === 'student-performance') {
+        const data = await reportService.getStudentPerformance(filters);
+        const headers = ['የመለያ ቁጥር', 'ሙሉ ስም', 'የክርስትና ስም', 'ጾታ', 'የትምህርት ዘመን', 'ምድብ', 'የተመዘገቡ ኮርሶች', 'የተጠናቀቁ ኮርሶች', 'ክሬዲት', 'GPA', 'ማዕረግ'];
+        const rows = data.map((d) => [
+          d.admissionNumber,
+          d.fullName,
+          d.baptismalName || '-',
+          d.gender,
+          d.academicYearName,
+          d.batchName,
+          d.totalEnrolledCourses,
+          d.completedCoursesCount,
+          d.totalEarnedCredits,
+          d.gpa.toFixed(2),
+          d.distinction,
+        ]);
+        csvData = reportService.generateExcelCsv(headers, rows);
+        filename = `student_performance_${Date.now()}.csv`;
+      } else if (reportType === 'approvals-log') {
+        const data = await reportService.getApprovedAndRejectedGrades(filters);
+        const headers = ['የኮርስ ስም', 'ኮድ', 'የትምህርት ዘመን', 'ምድብ', 'ያቀረበው መምህር', 'የመረመረው አስተዳዳሪ', 'ውሳኔ', 'ምክንያት', 'ቀን'];
+        const rows = data.map((d) => [
+          d.courseName,
+          d.courseCode,
+          d.academicYearName,
+          d.batchName,
+          d.submittedBy,
+          d.decidedBy,
+          d.decision === 'APPROVED' ? 'የጸደቀ' : 'ውድቅ የተደረገ',
+          d.rejectionReason || d.comments || '-',
+          d.decidedAt ? new Date(d.decidedAt).toLocaleDateString() : '-',
+        ]);
+        csvData = reportService.generateExcelCsv(headers, rows);
+        filename = `approvals_log_${Date.now()}.csv`;
+      } else if (reportType === 'students-by-course') {
+        const data = await reportService.getStudentsByCourse(filters);
+        const headers = ['የኮርስ ስም', 'ኮድ', 'የትምህርት ዘመን', 'ምድብ', 'መምህራን', 'ክሬዲት', 'የተመዘገቡ', 'ያለፉ', 'ያላለፉ'];
+        const rows = data.map((d) => [
+          d.courseTitle,
+          d.courseCode,
+          d.academicYearName,
+          d.batchName,
+          Array.isArray(d.teachers) ? d.teachers.join('; ') : '-',
+          d.creditHours,
+          d.totalEnrolled,
+          d.passedCount,
+          d.failedCount,
+        ]);
+        csvData = reportService.generateExcelCsv(headers, rows);
+        filename = `students_by_course_${Date.now()}.csv`;
+      } else if (reportType === 'teacher-assignments') {
+        const data = await reportService.getTeacherAssignments(filters);
+        const headers = ['መምህር', 'የመምህር መለያ', 'የትምህርት ደረጃ', 'ስፔሻላይዜሽን', 'የተመደቡ ኮርሶች', 'የተማሪዎች ብዛት', 'ስልክ', 'ኢሜይል'];
+        const rows = data.map((d) => [
+          d.fullName,
+          d.teacherCode,
+          d.qualification,
+          d.specialization,
+          d.totalAssignedCourses,
+          d.totalStudentsTaught,
+          d.phone || '-',
+          d.email || '-',
+        ]);
+        csvData = reportService.generateExcelCsv(headers, rows);
+        filename = `teacher_assignments_${Date.now()}.csv`;
       } else {
         return res.status(400).json({ success: false, message: 'ያልታወቀ የሪፖርት አይነት።' });
       }

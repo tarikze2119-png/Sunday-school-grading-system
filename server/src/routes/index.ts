@@ -11,6 +11,7 @@ import gradeRoutes from './grade.routes.js';
 import reportRoutes from './report.routes.js';
 import notificationRoutes from './notification.routes.js';
 import gradingSchemeRoutes from './gradingScheme.routes.js';
+import announcementRoutes from './announcement.routes.js';
 
 const router = Router();
 
@@ -39,5 +40,6 @@ router.use('/grading-schemes', gradingSchemeRoutes);
 // Phase 6: Reporting, Notifications, and Academic History
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/announcements', announcementRoutes);
 
 export default router;

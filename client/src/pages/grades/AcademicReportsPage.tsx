@@ -151,7 +151,8 @@ export const AcademicReportsPage: React.FC = () => {
       csvContent += `ተ.ቁ,የኮርስ ስም,ኮድ,ምድብ,መምህራን,የተመዘገቡ ተማሪዎች,የማስረከቢያ ቀን,የውጤት ሁኔታ\n`;
 
       reportData.forEach((d: any, idx: number) => {
-        csvContent += `${idx + 1},"${d.courseName}","${d.courseCode}","${d.batchName}","${d.teachers.join(', ')}",${d.enrolledCount},"${d.gradeDeadline || 'አልተወሰነም'}",${d.submissionStatus}\n`;
+        const teacherNames = Array.isArray(d.teachers) ? d.teachers.join(', ') : '';
+        csvContent += `${idx + 1},"${d.courseName}","${d.courseCode}","${d.batchName}","${teacherNames}",${d.enrolledCount},"${d.gradeDeadline || 'አልተወሰነም'}",${d.submissionStatus}\n`;
       });
     }
 
@@ -311,7 +312,7 @@ export const AcademicReportsPage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-800 flex items-center justify-between">
               <span>የተማሪዎች ውጤት ደረጃ (Ranked by Score)</span>
-              <span>መምህራን፦ {reportData.teachers.join('፣ ')}</span>
+              <span>መምህራን፦ {(Array.isArray(reportData.teachers) ? reportData.teachers.join('፣ ') : '') || 'አልተመደቡም'}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
@@ -420,7 +421,7 @@ export const AcademicReportsPage: React.FC = () => {
                       <div className="font-bold text-slate-900">{d.courseName}</div>
                       <div className="text-[11px] text-slate-500">{d.batchName}</div>
                     </td>
-                    <td className="p-3 text-slate-700">{d.teachers.join('፣ ')}</td>
+                    <td className="p-3 text-slate-700">{(Array.isArray(d.teachers) ? d.teachers.join('፣ ') : '') || 'አልተመደቡም'}</td>
                     <td className="p-3 text-center font-bold text-slate-800">{d.enrolledCount}</td>
                     <td className="p-3 text-slate-600 font-medium">
                       {d.gradeDeadline ? new Date(d.gradeDeadline).toLocaleDateString() : 'አልተወሰነም'}

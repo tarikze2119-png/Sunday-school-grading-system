@@ -36,6 +36,7 @@
     "test:scenarios": "npm run test:scenarios --prefix server",
     "test:qa": "npm run test:qa --prefix server",
     "test:frontend": "npm run test:frontend --prefix server",
+    "test:announcement": "npm run test:announcement --prefix server",
     "test:all": "npm run test:all --prefix server"
   },
   "keywords": [

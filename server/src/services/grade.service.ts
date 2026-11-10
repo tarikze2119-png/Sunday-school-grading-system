@@ -25,6 +25,107 @@ export interface SaveGradeItemInput {
   isExempt?: boolean;
 }
 
+export interface GradingScaleItem {
+  id?: string;
+  letterGrade: string;
+  amharicLabel: string;
+  minScore: number;
+  maxScore: number;
+  gradePoint: number;
+  isPassing: boolean;
+  displayOrder: number;
+}
+
+export const DEFAULT_GRADING_SCALES: GradingScaleItem[] = [
+  {
+    letterGrade: 'A+',
+    amharicLabel: 'እጅግ በጣም ጥሩ (ከፍተኛ ማዕረግ)',
+    minScore: 95.0,
+    maxScore: 100.0,
+    gradePoint: 4.0,
+    isPassing: true,
+    displayOrder: 1,
+  },
+  {
+    letterGrade: 'A',
+    amharicLabel: 'እጅግ በጣም ጥሩ',
+    minScore: 85.0,
+    maxScore: 94.99,
+    gradePoint: 4.0,
+    isPassing: true,
+    displayOrder: 2,
+  },
+  {
+    letterGrade: 'B',
+    amharicLabel: 'በጣም ጥሩ',
+    minScore: 75.0,
+    maxScore: 84.99,
+    gradePoint: 3.0,
+    isPassing: true,
+    displayOrder: 3,
+  },
+  {
+    letterGrade: 'C',
+    amharicLabel: 'ጥሩ (አጥጋቢ)',
+    minScore: 60.0,
+    maxScore: 74.99,
+    gradePoint: 2.0,
+    isPassing: true,
+    displayOrder: 4,
+  },
+  {
+    letterGrade: 'D',
+    amharicLabel: 'ዝቅተኛ ማለፊያ',
+    minScore: 50.0,
+    maxScore: 59.99,
+    gradePoint: 1.0,
+    isPassing: true,
+    displayOrder: 5,
+  },
+  {
+    letterGrade: 'F',
+    amharicLabel: 'ያላለፈ (የሚደገም)',
+    minScore: 0.0,
+    maxScore: 49.99,
+    gradePoint: 0.0,
+    isPassing: false,
+    displayOrder: 6,
+  },
+];
+
+/**
+ * Robust greedy threshold matcher that prevents rounding gaps and missing scale errors
+ */
+export function matchScoreToScale(score: number, scales?: any[]): GradingScaleItem {
+  const activeScales = scales && scales.length > 0 ? scales : DEFAULT_GRADING_SCALES;
+  const sorted = [...activeScales].sort((a, b) => Number(b.minScore) - Number(a.minScore));
+
+  for (const s of sorted) {
+    if (score >= Number(s.minScore)) {
+      return {
+        letterGrade: s.letterGrade,
+        amharicLabel: s.amharicLabel,
+        minScore: Number(s.minScore),
+        maxScore: Number(s.maxScore),
+        gradePoint: Number(s.gradePoint),
+        isPassing: s.isPassing,
+        displayOrder: s.displayOrder || 1,
+      };
+    }
+  }
+
+  const lowest = sorted[sorted.length - 1] || DEFAULT_GRADING_SCALES[DEFAULT_GRADING_SCALES.length - 1];
+  return {
+    letterGrade: lowest.letterGrade,
+    amharicLabel: lowest.amharicLabel,
+    minScore: Number(lowest.minScore),
+    maxScore: Number(lowest.maxScore),
+    gradePoint: Number(lowest.gradePoint),
+    isPassing: lowest.isPassing,
+    displayOrder: lowest.displayOrder || 6,
+  };
+}
+
 export class GradeService {
   private cachedScales: any[] | null = null;
   private cachedScalesTime: number = 0;
@@ -34,19 +135,39 @@ export class GradeService {
   // ==========================================
 
   /**
-   * Get all system grading scales (In-memory cached for high throughput)
+   * Get all system grading scales (In-memory cached with automatic self-healing seed)
    */
   async getGradingScales() {
     const now = Date.now();
-    if (this.cachedScales && now - this.cachedScalesTime < 300000) {
+    if (this.cachedScales && this.cachedScales.length > 0 && now - this.cachedScalesTime < 300000) {
       return this.cachedScales;
     }
-    const scales = await prisma.gradingScale.findMany({
-      orderBy: { displayOrder: 'asc' },
-    });
-    this.cachedScales = scales;
-    this.cachedScalesTime = now;
-    return scales;
+    try {
+      let scales = await prisma.gradingScale.findMany({
+        orderBy: { displayOrder: 'asc' },
+      });
+
+      // If database has no grading scales, self-seed default scales automatically
+      if (scales.length === 0) {
+        for (const scale of DEFAULT_GRADING_SCALES) {
+          await prisma.gradingScale.upsert({
+            where: { letterGrade: scale.letterGrade },
+            update: scale,
+            create: scale,
+          });
+        }
+        scales = await prisma.gradingScale.findMany({
+          orderBy: { displayOrder: 'asc' },
+        });
+      }
+
+      this.cachedScales = scales.length > 0 ? scales : DEFAULT_GRADING_SCALES;
+      this.cachedScalesTime = now;
+      return this.cachedScales;
+    } catch {
+      // In-memory fallback if database query or connection fails
+      return DEFAULT_GRADING_SCALES;
+    }
   }
 
   /**
@@ -538,10 +659,8 @@ export class GradeService {
 
       calculatedTotal = Math.round(calculatedTotal * 100) / 100;
 
-      // Find matching letter grade from scale
-      const matchedScale = gradingScales.find(
-        (scale) => calculatedTotal >= Number(scale.minScore) && calculatedTotal <= Number(scale.maxScore)
-      ) || gradingScales[gradingScales.length - 1];
+      // Find matching letter grade from scale using robust threshold matcher
+      const matched = matchScoreToScale(calculatedTotal, gradingScales);
 
       return {
         enrollmentId: enrollment.id,
@@ -552,9 +671,9 @@ export class GradeService {
         phone: enrollment.student.user.phone,
         grades: gradesMap,
         totalScore: calculatedTotal,
-        letterGrade: matchedScale ? matchedScale.letterGrade : 'F',
-        gradeAmharicLabel: matchedScale ? matchedScale.amharicLabel : 'የሚሻሻል',
-        isPassed: matchedScale ? matchedScale.isPassing : false,
+        letterGrade: matched.letterGrade,
+        gradeAmharicLabel: matched.amharicLabel,
+        isPassed: matched.isPassing,
         finalNumericScore: enrollment.finalNumericScore ? Number(enrollment.finalNumericScore) : null,
         finalLetterGrade: enrollment.finalLetterGrade,
       };
@@ -1127,18 +1246,15 @@ export class GradeService {
 
         studentWeightedTotal = Math.round(studentWeightedTotal * 100) / 100;
 
-        // Match grading scale
-        const scale =
-          scales.find(
-            (s) => studentWeightedTotal >= Number(s.minScore) && studentWeightedTotal <= Number(s.maxScore)
-          ) || scales[scales.length - 1];
+        // Match grading scale using robust threshold matcher
+        const matched = matchScoreToScale(studentWeightedTotal, scales);
 
         await tx.studentEnrollment.update({
           where: { id: enrollment.id },
           data: {
             finalNumericScore: studentWeightedTotal,
-            finalLetterGrade: scale ? scale.letterGrade : 'F',
-            isPassed: scale ? scale.isPassing : false,
+            finalLetterGrade: matched.letterGrade,
+            isPassed: matched.isPassing,
           },
         });
       }
@@ -1469,7 +1585,17 @@ export class GradeService {
       });
 
       const numericScore = e.finalNumericScore ? Number(e.finalNumericScore) : 0;
-      const matchedScale = scales.find((s) => s.letterGrade === e.finalLetterGrade);
+      let matchedScale = scales.find((s) => s.letterGrade === e.finalLetterGrade);
+      let effectiveLetter = e.finalLetterGrade;
+      let effectivePassed = e.isPassed;
+
+      // Self-heal corrupted F when numeric score is >= 50
+      if (!matchedScale || (e.finalLetterGrade === 'F' && numericScore >= 50)) {
+        const auto = matchScoreToScale(numericScore, scales);
+        effectiveLetter = auto.letterGrade;
+        effectivePassed = auto.isPassing;
+        matchedScale = scales.find((s) => s.letterGrade === auto.letterGrade) || auto;
+      }
 
       return {
         enrollmentId: e.id,
@@ -1482,10 +1608,10 @@ export class GradeService {
         appliedSchemeName: activeScheme?.name,
         assessmentBreakdown,
         totalScore: numericScore,
-        letterGrade: e.finalLetterGrade || 'F',
+        letterGrade: effectiveLetter || 'F',
         gradeAmharicLabel: matchedScale?.amharicLabel || '',
         gradePoint: matchedScale ? Number(matchedScale.gradePoint) : 0,
-        isPassed: e.isPassed ?? false,
+        isPassed: effectivePassed ?? false,
         publishedAt: latestPublished?.publishedAt || null,
       };
     });
@@ -1703,16 +1829,27 @@ export class GradeService {
         });
       }
 
-      const matchedScale = scales.find((s) => s.letterGrade === enr.finalLetterGrade);
+      const score = enr.finalNumericScore ? Number(enr.finalNumericScore) : null;
+      let letter = enr.finalLetterGrade || '-';
+      let isPassed = enr.isPassed;
+      let matchedScale = scales.find((s) => s.letterGrade === letter);
+
+      // Self-heal corrupted F when numeric score is >= 50
+      if (score !== null && (!matchedScale || (letter === 'F' && score >= 50))) {
+        const auto = matchScoreToScale(score, scales);
+        letter = auto.letterGrade;
+        isPassed = auto.isPassing;
+        matchedScale = scales.find((s) => s.letterGrade === letter) || auto;
+      }
 
       historyMap.get(key).courses.push({
         courseCode: offering.course.code,
         courseName: offering.course.amharicTitle || offering.course.title,
         creditHours: offering.course.creditHours,
-        score: enr.finalNumericScore ? Number(enr.finalNumericScore) : null,
-        letterGrade: enr.finalLetterGrade || '-',
+        score,
+        letterGrade: letter,
         gradePoint: matchedScale ? Number(matchedScale.gradePoint) : 0,
-        isPassed: enr.isPassed,
+        isPassed,
       });
     }
 

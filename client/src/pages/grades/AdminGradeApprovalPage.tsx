@@ -469,7 +469,7 @@ export const AdminGradeApprovalPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="p-3 text-slate-700 font-medium">
-                          {dl.teachers.join('፣ ') || 'መምህር አልተመደበም'}
+                          {(Array.isArray(dl.teachers) ? dl.teachers.join('፣ ') : '') || 'መምህር አልተመደበም'}
                         </td>
                         <td className="p-3">
                           <div
@@ -549,7 +549,7 @@ export const AdminGradeApprovalPage: React.FC = () => {
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   {inspectSheet.offering.academicYearName} • {inspectSheet.offering.batchName} • መምህራን፦{' '}
-                  {inspectSheet.offering.teachers.join(', ') || 'አልተገለጸም'} • {inspectSheet.students.length} ተማሪዎች • የቀረበበት ቀን፦{' '}
+                  {(Array.isArray(inspectSheet.offering.teachers) ? inspectSheet.offering.teachers.join(', ') : '') || 'አልተገለጸም'} • {inspectSheet.students.length} ተማሪዎች • የቀረበበት ቀን፦{' '}
                   {inspectSheet.latestSubmission?.submissionDate
                     ? toEthiopianDateString(new Date(inspectSheet.latestSubmission.submissionDate))
                     : 'አልተመዘገበም'}

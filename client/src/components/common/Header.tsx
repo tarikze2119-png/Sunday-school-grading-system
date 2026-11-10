@@ -7,15 +7,19 @@ export const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="bg-gold-600 p-2 rounded-lg text-white shadow">
-              <GraduationCap className="h-6 w-6" />
+            <div className="bg-white/10 p-1.5 rounded-xl border border-white/20 shadow shrink-0">
+              <img
+                src="/assets/haimote-abraham-logo.png"
+                alt="ሐይመተ አብርሃም ሰንበት ትምህርት ቤት ሎጎ"
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">
-                የሰንበት ትምህርት ቤት የተማሪዎች ውጤት አስተዳደር ሥርዓት
+                ሐይመተ አብርሃም ሰንበት ትምህርት ቤት
               </h1>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                የተማሪዎች ውጤት ምዝገባ፣ ማጽደቂያ እና ይፋዊ ሰነዶች ማዕከል
+              <p className="text-xs text-brand-100 hidden sm:block">
+                የተማሪዎች ውጤት አስተዳደር ሥርዓት
               </p>
             </div>
           </div>

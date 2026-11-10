@@ -9,6 +9,7 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Calendar,
+  Megaphone,
   X
 } from 'lucide-react';
 import notificationService from '../../services/notificationService';
@@ -142,6 +143,8 @@ export const NotificationBell: React.FC = () => {
         return <AlertCircle className="w-4 h-4 text-red-500" />;
       case 'RESULTS_PUBLISHED':
         return <Award className="w-4 h-4 text-gold-500" />;
+      case 'ANNOUNCEMENT':
+        return <Megaphone className="w-4 h-4 text-purple-500" />;
       default:
         return <Bell className="w-4 h-4 text-slate-400" />;
     }

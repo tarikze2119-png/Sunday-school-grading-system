@@ -648,7 +648,7 @@ export const SuperAdminDashboard: React.FC = () => {
       {activeNav === 'settings' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h3 className="text-base font-bold text-slate-900">የሰንበት ትምህርት ቤት ተቋማዊ ቅንብሮች</h3>
+            <h3 className="text-base font-bold text-slate-900">ሐይመተ አብርሃም ሰንበት ትምህርት ቤት ተቋማዊ ቅንብሮች</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                 <span className="text-slate-500 block">የተቋሙ ስም፦</span>

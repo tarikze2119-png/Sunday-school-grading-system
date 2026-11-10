@@ -65,15 +65,19 @@ export const DashboardShell: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             {/* Logo and System Title */}
             <div className="flex items-center gap-3">
-              <div className="bg-gold-600 p-2 rounded-xl text-white shadow-md">
-                <GraduationCap className="h-6 w-6" />
+              <div className="bg-white/10 p-1.5 rounded-xl border border-white/20 shadow-md shrink-0">
+                <img
+                  src="/assets/haimote-abraham-logo.png"
+                  alt="ሐይመተ አብርሃም ሰንበት ትምህርት ቤት ሎጎ"
+                  className="h-9 w-auto object-contain"
+                />
               </div>
               <div>
-                <h1 className="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">
-                  የሰንበት ትምህርት ቤት የተማሪዎች ውጤት አስተዳደር ሥርዓት
+                <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white leading-tight">
+                  ሐይመተ አብርሃም ሰንበት ትምህርት ቤት
                 </h1>
-                <p className="text-[11px] text-slate-400 hidden sm:block">
-                  የተማሪዎች ውጤት ምዝገባ፣ ማጽደቂያ እና ይፋዊ ሰነዶች ማዕከል
+                <p className="text-[11px] text-brand-100 hidden sm:block">
+                  የተማሪዎች ውጤት አስተዳደር ሥርዓት (Grading Management System)
                 </p>
               </div>
             </div>
@@ -189,7 +193,7 @@ export const DashboardShell: React.FC = () => {
       {/* Professional Footer in Amharic */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <p className="font-medium">
-          © 2016-2026 የሰንበት ትምህርት ቤት የተማሪዎች ውጤት አስተዳደር ሥርዓት | መብቱ በሕግ የተጠበቀ ነው።
+          © 2016-2026 ሐይመተ አብርሃም ሰንበት ትምህርት ቤት | የውጤት አስተዳደር ማዕከል
         </p>
       </footer>
 

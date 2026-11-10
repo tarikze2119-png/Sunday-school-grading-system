@@ -204,7 +204,7 @@ export const StudentResultsPage: React.FC = () => {
               <div className="text-center">
                 <span className="text-[10px] text-slate-400 font-bold block">አማካይ ውጤት (GPA)</span>
                 <strong className="text-xl font-black text-gold-400 font-mono">
-                  {multiYearData?.summary.cumulativeGpa.toFixed(2) || '0.00'}
+                  {(typeof multiYearData?.summary?.cumulativeGpa === 'number' ? multiYearData.summary.cumulativeGpa : Number(multiYearData?.summary?.cumulativeGpa) || 0).toFixed(2)}
                 </strong>
               </div>
             </div>
@@ -248,7 +248,7 @@ export const StudentResultsPage: React.FC = () => {
                         {term.registrationStatus === 'PROMOTED' ? 'ተዛውሯል / አልፏል' : 'ንቁ / በመማር ላይ'}
                       </span>
                       <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                        የመንፈቁ GPA፦ {term.termGpa.toFixed(2)}
+                        የመንፈቁ GPA፦ {(typeof term.termGpa === 'number' ? term.termGpa : Number(term.termGpa) || 0).toFixed(2)}
                       </span>
                     </div>
                   </div>

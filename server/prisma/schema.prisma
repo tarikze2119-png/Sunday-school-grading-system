@@ -108,6 +108,8 @@ model User {
   recordedGrades      Grade[]            @relation("GradeRecordedBy")
   createdGradingSchemes GradingScheme[]           @relation("SchemeCreatedBy")
   gradeSnapshots        GradeCalculationSnapshot[] @relation("SnapshotCreatedBy")
+  createdAnnouncements Announcement[]            @relation("AnnouncementCreatedBy")
+  announcementRecipients AnnouncementRecipient[] @relation("AnnouncementRecipients")
 
   @@index([role])
   @@index([username])
@@ -160,6 +162,7 @@ model Batch {
   students        Student[]
   courseOfferings CourseOffering[]
   registrations   StudentRegistration[]
+  announcements   Announcement[]
 
   @@unique([academicYearId, code])
   @@index([academicYearId])
@@ -194,6 +197,7 @@ model Student {
   enrollments     StudentEnrollment[]
   grades          Grade[]
   registrations   StudentRegistration[]
+  targetedAnnouncements Announcement[]
 
   @@index([admissionNumber])
   @@index([batchId])
@@ -215,6 +219,7 @@ model Teacher {
   user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Rule 6: One teacher can have multiple course assignments
   assignments     TeacherAssignment[]
+  targetedAnnouncements Announcement[]
 
   @@index([teacherCode])
   @@map("teachers")
@@ -620,4 +625,84 @@ model GradeCalculationSnapshot {
   @@index([courseOfferingId])
   @@index([createdAt])
   @@map("grade_calculation_snapshots")
+}
+
+// ==========================================
+// ANNOUNCEMENT MANAGEMENT SYSTEM
+// ==========================================
+
+enum AnnouncementTargetAudience {
+  ALL_USERS
+  ALL_STUDENTS
+  SPECIFIC_BATCH
+  INDIVIDUAL_STUDENT
+  ALL_TEACHERS
+  INDIVIDUAL_TEACHER
+}
+
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  EXPIRED
+  ARCHIVED
+}
+
+model Announcement {
+  id              String                     @id @default(uuid())
+  title           String                     // የአማርኛ ርዕስ
+  content         String                     // የአማርኛ ዝርዝር መልእክት
+  targetAudience  AnnouncementTargetAudience @default(ALL_USERS)
+  priority        AnnouncementPriority       @default(NORMAL)
+  status          AnnouncementStatus         @default(DRAFT)
+
+  // Optional target foreign keys
+  batchId         String?
+  studentId       String?
+  teacherId       String?
+
+  publishAt       DateTime                   @default(now())
+  expiresAt       DateTime?
+  isArchived      Boolean                    @default(false)
+  createdById     String
+
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  // Relationships
+  createdBy       User                       @relation("AnnouncementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  batch           Batch?                     @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  student         Student?                   @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  teacher         Teacher?                   @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  recipients      AnnouncementRecipient[]
+
+  @@index([status])
+  @@index([targetAudience])
+  @@index([publishAt])
+  @@index([expiresAt])
+  @@index([createdById])
+  @@map("announcements")
+}
+
+model AnnouncementRecipient {
+  id              String        @id @default(uuid())
+  announcementId  String
+  userId          String
+  isRead          Boolean       @default(false)
+  readAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  announcement    Announcement  @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user            User          @relation("AnnouncementRecipients", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, isRead])
+  @@index([announcementId])
+  @@map("announcement_recipients")
 }

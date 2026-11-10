@@ -8,11 +8,14 @@ import EnrollmentPage from '../academic/EnrollmentPage';
 import AdminGradeApprovalPage from '../grades/AdminGradeApprovalPage';
 import ManagementReportsPage from '../reports/ManagementReportsPage';
 import GradingSchemeHub from '../gradingScheme/GradingSchemeHub';
+import AdminAnnouncementPage from '../announcements/AdminAnnouncementPage';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
 import academicService from '../../services/academicService';
 import studentService from '../../services/studentService';
 import teacherService from '../../services/teacherService';
 import courseService from '../../services/courseService';
 import gradeService from '../../services/gradeService';
+import announcementService from '../../services/announcementService';
 import Button from '../../components/common/Button';
 import { 
   LayoutDashboard, 
@@ -28,13 +31,15 @@ import {
   CheckCircle2, 
   AlertCircle,
   ArrowRight,
-  Sliders
+  Sliders,
+  Megaphone
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const [activeModule, setActiveModule] = useState<
     | 'overview'
     | 'approvals'
+    | 'announcements'
     | 'schemes'
     | 'years'
     | 'batches'
@@ -102,6 +107,7 @@ export const AdminDashboard: React.FC = () => {
       icon: ShieldCheck, 
       count: stats.pendingApprovalsCount > 0 ? stats.pendingApprovalsCount : undefined 
     },
+    { key: 'announcements', label: 'ማስታወቂያዎች', icon: Megaphone },
     { key: 'schemes', label: 'የውጤት መመዘኛ አስተዳደር', icon: Sliders },
     { key: 'reports', label: 'አካዳሚክ ሪፖርቶች', icon: FileSpreadsheet },
     { key: 'years', label: 'የትምህርት ዘመናት', icon: Calendar, count: stats.yearsCount },
@@ -161,7 +167,7 @@ export const AdminDashboard: React.FC = () => {
                 የአካዳሚክ አስተዳዳሪ ማዕከል
               </span>
               <h1 className="text-xl sm:text-2xl font-black mt-2">
-                የሰንበት ትምህርት ቤት አካዳሚክ እና ውጤት አስተዳደር
+                ሐይመተ አብርሃም ሰንበት ትምህርት ቤት • የአካዳሚክ እና ውጤት አስተዳደር
               </h1>
               <p className="text-xs text-blue-200 mt-1">
                 የትምህርት ዘመናትን፣ የተማሪዎች ምድቦችን፣ ኮርሶችን፣ ምዝገባዎችን እና የውጤት ማጽደቂያ ሂደቶችን በአንድ ማዕከል ያስተዳድሩ።
@@ -274,7 +280,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {/* Quick Action Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
               <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-700">
                 <ShieldCheck className="w-5 h-5" />
@@ -288,6 +294,22 @@ export const AdminDashboard: React.FC = () => {
                 className="text-xs font-bold text-brand-700 hover:text-brand-800 flex items-center gap-1 pt-1"
               >
                 ወደ ማጽደቂያ ሂድ &rarr;
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-700">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">የማስታወቂያ አስተዳደር</h3>
+              <p className="text-xs text-slate-500">
+                ለተማሪዎች፣ ለመምህራን ወይም ለተወሰነ ምድብ ማስታወቂያዎችን ይጻፉ፣ ያሰራጩ እና የተነበቡበትን ሁኔታ ይከታተሉ።
+              </p>
+              <button
+                onClick={() => setActiveModule('announcements')}
+                className="text-xs font-bold text-purple-700 hover:text-purple-800 flex items-center gap-1 pt-1"
+              >
+                ወደ ማስታወቂያዎች ሂድ &rarr;
               </button>
             </div>
 
@@ -331,8 +353,17 @@ export const AdminDashboard: React.FC = () => {
       {/* ========================================================= */}
       <div>
         {activeModule === 'approvals' && <AdminGradeApprovalPage />}
+        {activeModule === 'announcements' && (
+          <ErrorBoundary fallbackTitle="የማስታወቂያዎች አስተዳደር">
+            <AdminAnnouncementPage />
+          </ErrorBoundary>
+        )}
         {activeModule === 'schemes' && <GradingSchemeHub />}
-        {activeModule === 'reports' && <ManagementReportsPage />}
+        {activeModule === 'reports' && (
+          <ErrorBoundary fallbackTitle="የአካዳሚክ ሪፖርቶች ማዕከል">
+            <ManagementReportsPage />
+          </ErrorBoundary>
+        )}
         {activeModule === 'years' && <AcademicYearsPage />}
         {activeModule === 'batches' && <BatchesPage />}
         {activeModule === 'students' && <StudentsPage />}

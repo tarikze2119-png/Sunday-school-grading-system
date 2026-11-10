@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ManagementReportsPage from '../reports/ManagementReportsPage';
+import AnnouncementFeed from '../../components/announcements/AnnouncementFeed';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
 import gradeService from '../../services/gradeService';
 import courseService from '../../services/courseService';
 import studentService from '../../services/studentService';
 import academicService from '../../services/academicService';
+import announcementService from '../../services/announcementService';
 import Badge from '../../components/common/Badge';
 import { 
   Award, 
@@ -17,12 +20,23 @@ import {
   Clock, 
   BookOpen, 
   AlertCircle,
-  GraduationCap
+  GraduationCap,
+  Megaphone
 } from 'lucide-react';
 
 export const ManagementDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'reports' | 'announcements'>('overview');
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+
+  const fetchUnread = async () => {
+    try {
+      const count = await announcementService.getUnreadCount();
+      setUnreadCount(count);
+    } catch {
+      // Ignore
+    }
+  };
 
   // Management State
   const [metrics, setMetrics] = useState({
@@ -97,6 +111,7 @@ export const ManagementDashboard: React.FC = () => {
     };
 
     fetchManagementData();
+    fetchUnread();
   }, []);
 
   const progressPercent =
@@ -127,33 +142,66 @@ export const ManagementDashboard: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'overview'
-              ? 'bg-brand-700 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <PieChart className="w-4 h-4" />
-          <span>የአካዳሚክ ስታቲስቲክስ እና አፈፃፀም</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'reports'
-              ? 'bg-brand-700 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          <span>ዝርዝር የአካዳሚክ ሪፖርቶች እና ሰነዶች</span>
-        </button>
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'overview'
+                ? 'bg-brand-700 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <PieChart className="w-4 h-4" />
+            <span>የአካዳሚክ ስታቲስቲክስ እና አፈፃፀም</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'reports'
+                ? 'bg-brand-700 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>ዝርዝር የአካዳሚክ ሪፖርቶች እና ሰነዶች</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('announcements')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'announcements'
+                ? 'bg-brand-700 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Megaphone className="w-4 h-4" />
+            <span>ማስታወቂያዎች</span>
+            {unreadCount > 0 && (
+              <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                {unreadCount} አዲስ
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {activeTab === 'reports' ? (
-        <ManagementReportsPage />
+        <ErrorBoundary fallbackTitle="የአካዳሚክ ሪፖርቶች ማዕከል">
+          <ManagementReportsPage />
+        </ErrorBoundary>
+      ) : activeTab === 'announcements' ? (
+        <div className="space-y-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Megaphone className="w-5 h-5 text-brand-600" />
+              <span>የሰንበት ትምህርት ቤቱ መልዕክቶች እና ማስታወቂያዎች</span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              ለሰንበት ትምህርት ቤቱ ማኅበረሰብ እና ለአስተዳደር አካላት የተላለፉ ማስታወቂያዎችን ይመልከቱ።
+            </p>
+          </div>
+          <AnnouncementFeed onReadStatusChange={fetchUnread} />
+        </div>
       ) : (
         <div className="space-y-6">
           {/* 1. Academic Performance & Statistics Cards */}

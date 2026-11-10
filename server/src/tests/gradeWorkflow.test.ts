@@ -51,8 +51,14 @@ export function mapScoreToGradeScale(
   score: number,
   scales: MockGradingScale[] = standardScales
 ): MockGradingScale {
-  const matched = scales.find((s) => score >= s.minScore && score <= s.maxScore);
-  return matched || scales[scales.length - 1];
+  const activeScales = (scales && scales.length > 0) ? scales : standardScales;
+  const sorted = [...activeScales].sort((a, b) => b.minScore - a.minScore);
+  for (const s of sorted) {
+    if (score >= s.minScore) {
+      return s;
+    }
+  }
+  return sorted[sorted.length - 1];
 }
 
 export function validateDeadline(
@@ -127,6 +133,12 @@ export function runGradeWorkflowTests() {
 
   const gradeAPlus = mapScoreToGradeScale(98.5);
   assert("Score 98.5 maps to Grade 'A+' (ከፍተኛ ማዕረግ)", gradeAPlus.letterGrade === 'A+' && gradeAPlus.isPassing);
+
+  const grade99 = mapScoreToGradeScale(99.0);
+  assert("Score 99.0 maps to Grade 'A+' (እጅግ በጣም ጥሩ - ከፍተኛ ማዕረግ)", grade99.letterGrade === 'A+' && grade99.gradePoint === 4.0 && grade99.isPassing);
+
+  const emptyScalesGrade99 = mapScoreToGradeScale(99.0, []);
+  assert("Score 99.0 with empty DB scales array still resolves to 'A+' via default scales", emptyScalesGrade99.letterGrade === 'A+' && emptyScalesGrade99.gradePoint === 4.0 && emptyScalesGrade99.isPassing);
 
   const gradeF = mapScoreToGradeScale(42.0);
   assert("Score 42.0 maps to Grade 'F' (ያላለፈ)", gradeF.letterGrade === 'F' && !gradeF.isPassing);

@@ -1079,7 +1079,7 @@ export const GradingSchemeHub: React.FC = () => {
                           <td className="p-3 text-slate-600">{course.academicYearName}</td>
                           <td className="p-3 text-slate-600">{course.batchName}</td>
                           <td className="p-3 text-slate-600">
-                            {course.teachers.map((t) => t.name).join(', ') || 'አልተመደበም'}
+                            {(Array.isArray(course.teachers) ? course.teachers.map((t) => t.name).join(', ') : '') || 'አልተመደበም'}
                           </td>
                           <td className="p-3">
                             {course.activeScheme ? (

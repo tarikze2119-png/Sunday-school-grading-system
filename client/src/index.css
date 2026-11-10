@@ -1,8 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --brand-royal-blue: #3569B5;
+  --brand-golden-yellow: #FFE500;
+  --brand-warm-orange: #FFB347;
+  --brand-light-blue: #EAF0FA;
+  --brand-dark-charcoal: #20242B;
+}
 
 @layer base {
   html {

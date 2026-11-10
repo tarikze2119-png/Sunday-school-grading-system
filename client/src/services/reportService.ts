@@ -73,20 +73,33 @@ export const reportService = {
   },
 
   downloadCsvReport: async (reportType: string, params?: ReportFilterParams): Promise<void> => {
-    const res = await api.get(`/reports/export/${reportType}`, {
-      params,
-      responseType: 'blob',
-    });
+    try {
+      const res = await api.get(`/reports/export/${reportType}`, {
+        params,
+        responseType: 'blob',
+      });
 
-    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${reportType}_report_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${reportType}_report_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          throw new Error(json.message || 'ሪፖርቱን ወደ Excel ማውረድ አልተቻለም።');
+        } catch {
+          throw new Error('ሪፖርቱን ወደ Excel ማውረድ አልተቻለም።');
+        }
+      }
+      throw err;
+    }
   },
 };
 

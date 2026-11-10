@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.client.js';
 import { GradeSubmissionStatus, ApprovalDecision, Gender } from '@prisma/client';
+import { matchScoreToScale, DEFAULT_GRADING_SCALES } from './grade.service.js';
 
 export interface ReportFilterOptions {
   academicYearId?: string;
@@ -399,7 +400,8 @@ export class ReportService {
       },
     });
 
-    const scales = await prisma.gradingScale.findMany();
+    const rawScales = await prisma.gradingScale.findMany();
+    const scales = rawScales.length > 0 ? rawScales : DEFAULT_GRADING_SCALES;
 
     const results = students.map((s) => {
       let totalQualityPoints = 0;
@@ -632,7 +634,8 @@ export class ReportService {
       throw new Error('የተማሪው መረጃ አልተገኘም።');
     }
 
-    const scales = await prisma.gradingScale.findMany();
+    const rawScales = await prisma.gradingScale.findMany();
+    const scales = rawScales.length > 0 ? rawScales : DEFAULT_GRADING_SCALES;
 
     // Group enrollments by academic year and batch
     const historyTerms: Array<{
@@ -683,9 +686,19 @@ export class ReportService {
         const isPublished = en.courseOffering.gradeSubmissions.length > 0;
         const credits = en.courseOffering.course.creditHours;
         const score = isPublished && en.finalNumericScore !== null ? Number(en.finalNumericScore) : null;
-        const letter = isPublished && en.finalLetterGrade ? en.finalLetterGrade : '-';
+        let letter = isPublished && en.finalLetterGrade ? en.finalLetterGrade : '-';
 
-        const scale = scales.find((s) => s.letterGrade === letter);
+        let scale: any = scales.find((s) => s.letterGrade === letter);
+        let effectivePassed = isPublished ? en.isPassed : null;
+
+        // Self-heal corrupted F when numeric score is >= 50
+        if (score !== null && (!scale || (letter === 'F' && score >= 50))) {
+          const auto = matchScoreToScale(score, scales);
+          letter = auto.letterGrade;
+          effectivePassed = auto.isPassing;
+          scale = scales.find((s) => s.letterGrade === letter) || auto;
+        }
+
         const amharicLabel = scale ? scale.amharicLabel : (isPublished ? '-' : 'በመማር ላይ');
 
         if (score !== null && scale) {
@@ -701,7 +714,7 @@ export class ReportService {
           totalScore: score,
           letterGrade: letter,
           amharicLabel,
-          isPassed: isPublished ? en.isPassed : null,
+          isPassed: effectivePassed,
           assessments: isPublished
             ? en.grades.map((g) => ({
                 name: g.assessment.name,
