@@ -31,5 +31,11 @@
         "service": "web"
       }
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/announcements/sync-schedule",
+      "schedule": "0 3 * * *"
+    }
   ]
 }

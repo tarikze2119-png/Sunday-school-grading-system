@@ -8,34 +8,48 @@ import { UserRole } from '@prisma/client';
 const router = Router();
 
 // ==========================================
-// CRON / AUTOMATED SYNC ENDPOINT
+// CRON / AUTOMATED SYNC ENDPOINT (GET & POST)
 // ==========================================
-router.post(
-  '/sync-schedule',
-  async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+const handleScheduledSync = async (req: any, res: any) => {
+  const authHeader = req.headers.authorization;
+  const cronSecret = process.env.CRON_SECRET;
+
+  // 1. Check if invoked by Vercel Cron or automated scheduler with valid CRON_SECRET
+  if (cronSecret && cronSecret.trim().length > 0) {
+    if (authHeader === `Bearer ${cronSecret}`) {
       try {
-        await announcementService.autoSyncAnnouncementStatuses();
-        return res.status(200).json({ success: true, message: 'የቀጠሮ ማስታወቂያዎች በስኬት ተመሳስለዋል።' });
+        const stats = await announcementService.autoSyncAnnouncementStatuses();
+        return res.status(200).json({
+          success: true,
+          message: 'የቀጠሮ ማስታወቂያዎች በስኬት ተመሳስለዋል።',
+          data: stats,
+        });
       } catch (err: any) {
-        return res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({ success: false, message: err.message || 'ማመሳሰል አልተቻለም።' });
       }
     }
-    next();
-  },
-  authenticateJwt,
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
-  async (req, res) => {
-    try {
-      await announcementService.autoSyncAnnouncementStatuses();
-      return res.status(200).json({ success: true, message: 'የቀጠሮ ማስታወቂያዎች በስኬት ተመሳስለዋል።' });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
-    }
   }
-);
+
+  // 2. Otherwise require Super Admin or Admin JWT authentication
+  authenticateJwt(req, res, () => {
+    authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN])(req, res, async () => {
+      try {
+        const stats = await announcementService.autoSyncAnnouncementStatuses();
+        return res.status(200).json({
+          success: true,
+          message: 'የቀጠሮ ማስታወቂያዎች በስኬት ተመሳስለዋል።',
+          data: stats,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, message: err.message || 'ማመሳሰል አልተቻለም።' });
+      }
+    });
+  });
+};
+
+// Vercel Cron invokes via GET; Admins / manual tools can invoke via GET or POST
+router.get('/sync-schedule', handleScheduledSync);
+router.post('/sync-schedule', handleScheduledSync);
 
 // Base Authentication required for all other announcement actions
 router.use(authenticateJwt);

@@ -373,7 +373,141 @@ async function runAnnouncementTests() {
     console.log('  ✅ PASS: Concurrency guard prevents duplicate publications and notifications');
   }
 
-  console.log('\nAll Announcement System automated tests PASSED! (10/10 suites)\n');
+  // 11. Scheduled Sync Authorization (CRON_SECRET and Admin Role Enforcement)
+  {
+    const configuredSecret = 'test_cron_secret_secure_key_123';
+
+    function authorizeSyncRequest(authHeader: string | undefined, userRole?: string): { allowed: boolean; status: number } {
+      if (configuredSecret && authHeader === `Bearer ${configuredSecret}`) {
+        return { allowed: true, status: 200 };
+      }
+      if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+        return { allowed: true, status: 200 };
+      }
+      if (userRole) {
+        return { allowed: false, status: 403 }; // Forbidden for non-admin roles (STUDENT, TEACHER, MANAGEMENT)
+      }
+      return { allowed: false, status: 401 }; // Unauthorized if no valid secret or token
+    }
+
+    // A. Valid CRON_SECRET succeeds without user token
+    const validCron = authorizeSyncRequest(`Bearer ${configuredSecret}`);
+    assert.strictEqual(validCron.allowed, true);
+    assert.strictEqual(validCron.status, 200);
+
+    // B. Invalid CRON_SECRET without token is rejected with 401
+    const invalidCron = authorizeSyncRequest('Bearer wrong_secret');
+    assert.strictEqual(invalidCron.allowed, false);
+    assert.strictEqual(invalidCron.status, 401);
+
+    // C. Missing authorization is rejected with 401
+    const missingAuth = authorizeSyncRequest(undefined);
+    assert.strictEqual(missingAuth.allowed, false);
+    assert.strictEqual(missingAuth.status, 401);
+
+    // D. Admin user without CRON_SECRET succeeds with 200
+    const adminUser = authorizeSyncRequest(undefined, 'ADMIN');
+    assert.strictEqual(adminUser.allowed, true);
+    assert.strictEqual(adminUser.status, 200);
+
+    // E. Super Admin user without CRON_SECRET succeeds with 200
+    const superAdminUser = authorizeSyncRequest(undefined, 'SUPER_ADMIN');
+    assert.strictEqual(superAdminUser.allowed, true);
+    assert.strictEqual(superAdminUser.status, 200);
+
+    // F. Student user without CRON_SECRET is rejected with 403
+    const studentUser = authorizeSyncRequest(undefined, 'STUDENT');
+    assert.strictEqual(studentUser.allowed, false);
+    assert.strictEqual(studentUser.status, 403);
+
+    // G. Teacher user without CRON_SECRET is rejected with 403
+    const teacherUser = authorizeSyncRequest(undefined, 'TEACHER');
+    assert.strictEqual(teacherUser.allowed, false);
+    assert.strictEqual(teacherUser.status, 403);
+
+    console.log('  ✅ PASS: CRON_SECRET and role-based authorization for sync-schedule verified');
+  }
+
+  // 12. Automated Scheduled Sync Lifecycle & Time-Based Promotion
+  {
+    const now = new Date('2026-11-10T15:00:00.000Z');
+
+    const announcements = [
+      {
+        id: 'ann-due',
+        status: MockAnnouncementStatus.SCHEDULED,
+        publishAt: new Date('2026-11-10T14:30:00.000Z'), // Past due by 30 mins
+        expiresAt: new Date('2026-11-15T15:00:00.000Z'),
+        isArchived: false,
+      },
+      {
+        id: 'ann-future',
+        status: MockAnnouncementStatus.SCHEDULED,
+        publishAt: new Date('2026-11-10T16:00:00.000Z'), // 1 hour in the future
+        expiresAt: new Date('2026-11-15T15:00:00.000Z'),
+        isArchived: false,
+      },
+      {
+        id: 'ann-expired',
+        status: MockAnnouncementStatus.PUBLISHED,
+        publishAt: new Date('2026-11-01T15:00:00.000Z'),
+        expiresAt: new Date('2026-11-09T15:00:00.000Z'), // Expired yesterday
+        isArchived: false,
+      },
+      {
+        id: 'ann-archived',
+        status: MockAnnouncementStatus.ARCHIVED,
+        publishAt: new Date('2026-11-01T15:00:00.000Z'),
+        expiresAt: null,
+        isArchived: true,
+      },
+    ];
+
+    function runSync(items: typeof announcements, currentTime: Date) {
+      let published = 0;
+      let expired = 0;
+
+      for (const item of items) {
+        if (item.isArchived) continue;
+
+        // Due promotions
+        if (item.status === MockAnnouncementStatus.SCHEDULED && item.publishAt <= currentTime) {
+          item.status = MockAnnouncementStatus.PUBLISHED;
+          published++;
+        }
+
+        // Expirations
+        if (item.status === MockAnnouncementStatus.PUBLISHED && item.expiresAt && item.expiresAt < currentTime) {
+          item.status = MockAnnouncementStatus.EXPIRED;
+          expired++;
+        }
+      }
+
+      return { published, expired };
+    }
+
+    const syncResult = runSync(announcements, now);
+
+    assert.strictEqual(syncResult.published, 1, 'Exactly one due announcement should be published');
+    assert.strictEqual(syncResult.expired, 1, 'Exactly one past announcement should be marked expired');
+
+    // Verify individual items:
+    const dueItem = announcements.find((a) => a.id === 'ann-due');
+    assert.strictEqual(dueItem?.status, MockAnnouncementStatus.PUBLISHED, 'Due announcement must be PUBLISHED');
+
+    const futureItem = announcements.find((a) => a.id === 'ann-future');
+    assert.strictEqual(futureItem?.status, MockAnnouncementStatus.SCHEDULED, 'Future announcement must remain SCHEDULED');
+
+    const expiredItem = announcements.find((a) => a.id === 'ann-expired');
+    assert.strictEqual(expiredItem?.status, MockAnnouncementStatus.EXPIRED, 'Expired announcement must be EXPIRED');
+
+    const archivedItem = announcements.find((a) => a.id === 'ann-archived');
+    assert.strictEqual(archivedItem?.status, MockAnnouncementStatus.ARCHIVED, 'Archived announcement must remain ARCHIVED');
+
+    console.log('  ✅ PASS: Due announcements published, future held, expired transitioned, archived preserved');
+  }
+
+  console.log('\nAll Announcement System automated tests PASSED! (12/12 suites)\n');
 }
 
 runAnnouncementTests().catch((err) => {

@@ -158,12 +158,14 @@ export class AnnouncementService {
       },
     });
 
+    let publishedCount = 0;
     for (const ann of scheduledToPublish) {
       await this.publishAnnouncement(ann.id, ann.createdById);
+      publishedCount++;
     }
 
     // 2. Mark PUBLISHED -> EXPIRED if expiresAt has passed
-    await prisma.announcement.updateMany({
+    const expiredResult = await prisma.announcement.updateMany({
       where: {
         status: AnnouncementStatus.PUBLISHED,
         expiresAt: { lt: now },
@@ -173,6 +175,12 @@ export class AnnouncementService {
         status: AnnouncementStatus.EXPIRED,
       },
     });
+
+    return {
+      publishedCount,
+      expiredCount: expiredResult.count,
+      syncedAt: now.toISOString(),
+    };
   }
 
   /**
