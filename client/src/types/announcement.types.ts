@@ -8,6 +8,8 @@ export type AnnouncementTargetAudience =
 
 export type AnnouncementPriority = 'NORMAL' | 'IMPORTANT';
 
+export type AnnouncementCategory = 'GENERAL' | 'EVENT' | 'ACADEMIC';
+
 export type AnnouncementStatus =
   | 'DRAFT'
   | 'SCHEDULED'
@@ -21,8 +23,10 @@ export interface AnnouncementItem {
   content: string;
   targetAudience: AnnouncementTargetAudience;
   priority: AnnouncementPriority;
+  category: AnnouncementCategory;
   status: AnnouncementStatus;
   publishAt: string;
+  eventDate?: string | null;
   expiresAt: string | null;
   isArchived: boolean;
   createdAt: string;
@@ -70,8 +74,10 @@ export interface RecipientAnnouncementItem {
   title: string;
   content: string;
   priority: AnnouncementPriority;
+  category: AnnouncementCategory;
   targetAudience: AnnouncementTargetAudience;
   publishAt: string;
+  eventDate?: string | null;
   expiresAt: string | null;
   isRead: boolean;
   readAt: string | null;
@@ -104,24 +110,30 @@ export interface CreateAnnouncementPayload {
   title: string;
   content: string;
   targetAudience: AnnouncementTargetAudience;
+  category?: AnnouncementCategory;
   priority?: AnnouncementPriority;
   status?: AnnouncementStatus;
   batchId?: string | null;
   studentId?: string | null;
   teacherId?: string | null;
   publishAt?: string | null;
+  eventDate?: string | null;
   expiresAt?: string | null;
+  isManualExpiresAt?: boolean;
 }
 
 export interface UpdateAnnouncementPayload {
   title?: string;
   content?: string;
   targetAudience?: AnnouncementTargetAudience;
+  category?: AnnouncementCategory;
   priority?: AnnouncementPriority;
   status?: AnnouncementStatus;
   batchId?: string | null;
   studentId?: string | null;
   teacherId?: string | null;
   publishAt?: string | null;
+  eventDate?: string | null;
   expiresAt?: string | null;
+  isManualExpiresAt?: boolean;
 }

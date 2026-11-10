@@ -7,6 +7,7 @@ import {
   UpdateAnnouncementPayload,
   AnnouncementTargetAudience,
   AnnouncementPriority,
+  AnnouncementCategory,
   AnnouncementStatus,
 } from '../types/announcement.types';
 
@@ -14,6 +15,7 @@ export interface AdminAnnouncementFilterParams {
   status?: AnnouncementStatus | 'ALL';
   targetAudience?: AnnouncementTargetAudience | 'ALL';
   priority?: AnnouncementPriority | 'ALL';
+  category?: AnnouncementCategory | 'ALL';
   search?: string;
   page?: number;
   limit?: number;

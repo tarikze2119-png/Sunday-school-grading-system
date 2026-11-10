@@ -645,6 +645,12 @@ enum AnnouncementPriority {
   IMPORTANT
 }
 
+enum AnnouncementCategory {
+  GENERAL
+  EVENT
+  ACADEMIC
+}
+
 enum AnnouncementStatus {
   DRAFT
   SCHEDULED
@@ -659,6 +665,7 @@ model Announcement {
   content         String                     // የአማርኛ ዝርዝር መልእክት
   targetAudience  AnnouncementTargetAudience @default(ALL_USERS)
   priority        AnnouncementPriority       @default(NORMAL)
+  category        AnnouncementCategory       @default(GENERAL)
   status          AnnouncementStatus         @default(DRAFT)
 
   // Optional target foreign keys
@@ -667,6 +674,7 @@ model Announcement {
   teacherId       String?
 
   publishAt       DateTime                   @default(now())
+  eventDate       DateTime?                  // የክስተቱ / ዝግጅቱ ቀንና ሰዓት (ለ EVENT ማስታወቂያዎች)
   expiresAt       DateTime?
   isArchived      Boolean                    @default(false)
   createdById     String
@@ -684,7 +692,9 @@ model Announcement {
 
   @@index([status])
   @@index([targetAudience])
+  @@index([category])
   @@index([publishAt])
+  @@index([eventDate])
   @@index([expiresAt])
   @@index([createdById])
   @@map("announcements")

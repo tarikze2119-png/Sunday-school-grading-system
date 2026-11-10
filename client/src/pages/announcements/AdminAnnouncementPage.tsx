@@ -8,7 +8,10 @@ import {
   DetailedRecipientStats, 
   AnnouncementTargetAudience, 
   AnnouncementPriority, 
-  AnnouncementStatus 
+  AnnouncementCategory,
+  AnnouncementStatus,
+  CreateAnnouncementPayload,
+  UpdateAnnouncementPayload
 } from '../../types/announcement.types';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
@@ -48,6 +51,7 @@ export const AdminAnnouncementPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<AnnouncementStatus | 'ALL'>('ALL');
   const [audienceFilter, setAudienceFilter] = useState<AnnouncementTargetAudience | 'ALL'>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<AnnouncementPriority | 'ALL'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<AnnouncementCategory | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Dropdown Catalogs for form
@@ -67,16 +71,47 @@ export const AdminAnnouncementPage: React.FC = () => {
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
   const [formAudience, setFormAudience] = useState<AnnouncementTargetAudience>('ALL_USERS');
+  const [formCategory, setFormCategory] = useState<AnnouncementCategory>('GENERAL');
   const [formPriority, setFormPriority] = useState<AnnouncementPriority>('NORMAL');
   const [formPublishOption, setFormPublishOption] = useState<'NOW' | 'SCHEDULED' | 'DRAFT'>('NOW');
   const [formBatchId, setFormBatchId] = useState('');
   const [formStudentId, setFormStudentId] = useState('');
   const [formTeacherId, setFormTeacherId] = useState('');
   const [formPublishAt, setFormPublishAt] = useState('');
+  const [formEventDate, setFormEventDate] = useState('');
   const [formExpiresAt, setFormExpiresAt] = useState('');
+  const [isManualExpiresAt, setIsManualExpiresAt] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isConfirmPublishOpen, setIsConfirmPublishOpen] = useState(false);
+
+  // Helper to compute default expiration date based on category rules
+  const computeDefaultExpiration = (
+    category: AnnouncementCategory,
+    publishAtStr: string,
+    eventDateStr: string
+  ): string => {
+    const pubDate = publishAtStr ? new Date(publishAtStr) : new Date();
+    const basePubTime = !isNaN(pubDate.getTime()) ? pubDate.getTime() : Date.now();
+
+    if (category === 'GENERAL') {
+      const exp = new Date(basePubTime + 30 * 24 * 60 * 60 * 1000);
+      return exp.toISOString().slice(0, 16);
+    } else if (category === 'EVENT') {
+      if (eventDateStr) {
+        const evDate = new Date(eventDateStr);
+        if (!isNaN(evDate.getTime())) {
+          const exp = new Date(evDate.getTime() + 1 * 24 * 60 * 60 * 1000);
+          return exp.toISOString().slice(0, 16);
+        }
+      }
+      return '';
+    } else if (category === 'ACADEMIC') {
+      const exp = new Date(basePubTime + 90 * 24 * 60 * 60 * 1000);
+      return exp.toISOString().slice(0, 16);
+    }
+    return '';
+  };
 
   // Load Catalogs
   useEffect(() => {
@@ -106,6 +141,7 @@ export const AdminAnnouncementPage: React.FC = () => {
         status: statusFilter,
         targetAudience: audienceFilter,
         priority: priorityFilter,
+        category: categoryFilter,
         search: searchQuery.trim() || undefined,
         page: targetPage,
         limit: 15,
@@ -125,7 +161,7 @@ export const AdminAnnouncementPage: React.FC = () => {
 
   useEffect(() => {
     fetchAnnouncements(1);
-  }, [statusFilter, audienceFilter, priorityFilter]);
+  }, [statusFilter, audienceFilter, priorityFilter, categoryFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +172,7 @@ export const AdminAnnouncementPage: React.FC = () => {
     setStatusFilter('ALL');
     setAudienceFilter('ALL');
     setPriorityFilter('ALL');
+    setCategoryFilter('ALL');
     setSearchQuery('');
   };
 
@@ -145,13 +182,18 @@ export const AdminAnnouncementPage: React.FC = () => {
     setFormTitle('');
     setFormContent('');
     setFormAudience('ALL_USERS');
+    setFormCategory('GENERAL');
     setFormPriority('NORMAL');
     setFormPublishOption('NOW');
     setFormBatchId('');
     setFormStudentId('');
     setFormTeacherId('');
-    setFormPublishAt('');
-    setFormExpiresAt('');
+    const nowIso = new Date().toISOString().slice(0, 16);
+    setFormPublishAt(nowIso);
+    setFormEventDate('');
+    setIsManualExpiresAt(false);
+    const defaultExp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+    setFormExpiresAt(defaultExp);
     setFormError(null);
     setIsFormOpen(true);
   };
@@ -162,13 +204,16 @@ export const AdminAnnouncementPage: React.FC = () => {
     setFormTitle(ann.title);
     setFormContent(ann.content);
     setFormAudience(ann.targetAudience);
+    setFormCategory(ann.category || 'GENERAL');
     setFormPriority(ann.priority);
     setFormPublishOption(ann.status === 'DRAFT' ? 'DRAFT' : ann.status === 'SCHEDULED' ? 'SCHEDULED' : 'NOW');
     setFormBatchId(ann.batch?.id || '');
     setFormStudentId(ann.student?.id || '');
     setFormTeacherId(ann.teacher?.id || '');
     setFormPublishAt(ann.publishAt ? new Date(ann.publishAt).toISOString().slice(0, 16) : '');
+    setFormEventDate(ann.eventDate ? new Date(ann.eventDate).toISOString().slice(0, 16) : '');
     setFormExpiresAt(ann.expiresAt ? new Date(ann.expiresAt).toISOString().slice(0, 16) : '');
+    setIsManualExpiresAt(true); // Preserve existing expiration
     setFormError(null);
     setIsFormOpen(true);
   };
@@ -197,6 +242,11 @@ export const AdminAnnouncementPage: React.FC = () => {
       return;
     }
 
+    if (formCategory === 'EVENT' && !formEventDate) {
+      setFormError('የዝግጅት / ክስተት ማስታወቂያ የዝግጅቱን ቀን እና ሰዓት ማካተት አለበት።');
+      return;
+    }
+
     // If publishing immediately and not editing a draft, show confirmation step
     if (formPublishOption === 'NOW' && !isConfirmPublishOpen) {
       setIsConfirmPublishOpen(true);
@@ -214,17 +264,20 @@ export const AdminAnnouncementPage: React.FC = () => {
           ? 'SCHEDULED'
           : 'PUBLISHED';
 
-      const payload = {
+      const payload: CreateAnnouncementPayload = {
         title: formTitle.trim(),
         content: formContent.trim(),
         targetAudience: formAudience,
+        category: formCategory,
         priority: formPriority,
         status: computedStatus,
         batchId: formAudience === 'SPECIFIC_BATCH' ? formBatchId : null,
         studentId: formAudience === 'INDIVIDUAL_STUDENT' ? formStudentId : null,
         teacherId: formAudience === 'INDIVIDUAL_TEACHER' ? formTeacherId : null,
         publishAt: formPublishOption === 'SCHEDULED' && formPublishAt ? new Date(formPublishAt).toISOString() : new Date().toISOString(),
+        eventDate: formCategory === 'EVENT' && formEventDate ? new Date(formEventDate).toISOString() : null,
         expiresAt: formExpiresAt ? new Date(formExpiresAt).toISOString() : null,
+        isManualExpiresAt,
       };
 
       if (editingId) {
@@ -305,6 +358,43 @@ export const AdminAnnouncementPage: React.FC = () => {
     }
   };
 
+  const getCategoryLabel = (cat?: AnnouncementCategory) => {
+    switch (cat) {
+      case 'GENERAL':
+        return 'አጠቃላይ ማስታወቂያ';
+      case 'EVENT':
+        return 'የዝግጅት / ክስተት ማስታወቂያ';
+      case 'ACADEMIC':
+        return 'አካዳሚክ ማስታወቂያ';
+      default:
+        return 'አጠቃላይ ማስታወቂያ';
+    }
+  };
+
+  const getCategoryBadge = (cat?: AnnouncementCategory) => {
+    switch (cat) {
+      case 'EVENT':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            ዝግጅት
+          </span>
+        );
+      case 'ACADEMIC':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            አካዳሚክ
+          </span>
+        );
+      case 'GENERAL':
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            አጠቃላይ
+          </span>
+        );
+    }
+  };
+
   const getStatusBadge = (status: AnnouncementStatus) => {
     switch (status) {
       case 'PUBLISHED':
@@ -370,7 +460,7 @@ export const AdminAnnouncementPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Status Filter */}
           <div>
             <label className="text-[11px] font-bold text-slate-600 block mb-1">ሁኔታ (Status)</label>
@@ -385,6 +475,21 @@ export const AdminAnnouncementPage: React.FC = () => {
               <option value="DRAFT">ረቂቅ (Draft)</option>
               <option value="EXPIRED">ቀኑ ያለፈበት (Expired)</option>
               <option value="ARCHIVED">በማህደር የተቀመጠ (Archived)</option>
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-600 block mb-1">ምድብ (Category)</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as any)}
+              className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-brand-500 font-medium"
+            >
+              <option value="ALL">ሁሉም ምድቦች</option>
+              <option value="GENERAL">አጠቃላይ ማስታወቂያ</option>
+              <option value="EVENT">የዝግጅት / ክስተት</option>
+              <option value="ACADEMIC">አካዳሚክ ማስታወቂያ</option>
             </select>
           </div>
 
@@ -483,10 +588,10 @@ export const AdminAnnouncementPage: React.FC = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-bold">
                   <th className="py-3 px-4">ርዕስ</th>
-                  <th className="py-3 px-4">ተቀባይ ታዳሚ</th>
+                  <th className="py-3 px-4">ምድብ / ተቀባይ ታዳሚ</th>
                   <th className="py-3 px-4 text-center">ደረጃ</th>
                   <th className="py-3 px-4 text-center">ሁኔታ</th>
-                  <th className="py-3 px-4 text-center">የሚለጠፍበት ቀን</th>
+                  <th className="py-3 px-4 text-center">የሚለጠፍበት / ማብቂያ ቀን</th>
                   <th className="py-3 px-4 text-center">የርክክብ / የማንበብ ምጣኔ</th>
                   <th className="py-3 px-4 text-center">ተግባራት</th>
                 </tr>
@@ -494,6 +599,7 @@ export const AdminAnnouncementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {announcements.map((ann) => {
                   const publishDate = ann.publishAt ? toEthiopianDateString(new Date(ann.publishAt)) : '-';
+                  const expireDate = ann.expiresAt ? toEthiopianDateString(new Date(ann.expiresAt)) : 'ያልተገደበ';
                   const isImportant = ann.priority === 'IMPORTANT';
                   const stats = ann.stats || { totalRecipients: 0, readCount: 0, readPercentage: 0 };
 
@@ -509,6 +615,14 @@ export const AdminAnnouncementPage: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          {getCategoryBadge(ann.category)}
+                          {ann.eventDate && (
+                            <span className="text-[10px] text-indigo-700 font-mono font-bold">
+                              (ዝግጅት፦ {toEthiopianDateString(new Date(ann.eventDate))})
+                            </span>
+                          )}
+                        </div>
                         <span className="font-semibold text-slate-800 block">
                           {getAudienceLabel(ann.targetAudience, ann)}
                         </span>
@@ -533,8 +647,13 @@ export const AdminAnnouncementPage: React.FC = () => {
                         {getStatusBadge(ann.status)}
                       </td>
 
-                      <td className="py-3.5 px-4 text-center font-mono text-[11px] text-slate-600">
-                        {publishDate}
+                      <td className="py-3.5 px-4 text-center text-[11px]">
+                        <span className="font-mono text-slate-800 font-semibold block">
+                          {publishDate}
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-500 block">
+                          ማብቂያ፦ {expireDate}
+                        </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -695,40 +814,88 @@ export const AdminAnnouncementPage: React.FC = () => {
                 />
               </div>
 
-              {/* Audience and Priority in 2-cols */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Category, Audience and Priority in 3-cols */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Category */}
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    የማስታወቂያው ምድብ (Category) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => {
+                      const newCat = e.target.value as AnnouncementCategory;
+                      setFormCategory(newCat);
+                      if (!isManualExpiresAt) {
+                        const newExp = computeDefaultExpiration(newCat, formPublishAt, formEventDate);
+                        setFormExpiresAt(newExp);
+                      }
+                    }}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-brand-500 font-medium"
+                  >
+                    <option value="GENERAL">1. አጠቃላይ ማስታወቂያ (General)</option>
+                    <option value="EVENT">2. የዝግጅት / ክስተት (Event)</option>
+                    <option value="ACADEMIC">3. አካዳሚክ ማስታወቂያ (Academic)</option>
+                  </select>
+                </div>
+
                 {/* Target Audience */}
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">
-                    ተቀባይ ታዳሚ (Target Audience) <span className="text-red-500">*</span>
+                    ተቀባይ ታዳሚ (Audience) <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formAudience}
                     onChange={(e) => setFormAudience(e.target.value as any)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-brand-500 font-medium"
                   >
-                    <option value="ALL_USERS">1. ለሁሉም ተጠቃሚዎች (All Users)</option>
-                    <option value="ALL_STUDENTS">2. ለሁሉም ተማሪዎች (All Students)</option>
-                    <option value="SPECIFIC_BATCH">3. ለተመረጠ ምድብ (Specific Batch)</option>
-                    <option value="INDIVIDUAL_STUDENT">4. ለአንድ ተማሪ (Individual Student)</option>
-                    <option value="ALL_TEACHERS">5. ለሁሉም መምህራን (All Teachers)</option>
-                    <option value="INDIVIDUAL_TEACHER">6. ለአንድ መምህር (Individual Teacher)</option>
+                    <option value="ALL_USERS">ለሁሉም ተጠቃሚዎች</option>
+                    <option value="ALL_STUDENTS">ለሁሉም ተማሪዎች</option>
+                    <option value="SPECIFIC_BATCH">ለተመረጠ ምድብ</option>
+                    <option value="INDIVIDUAL_STUDENT">ለአንድ ተማሪ</option>
+                    <option value="ALL_TEACHERS">ለሁሉም መምህራን</option>
+                    <option value="INDIVIDUAL_TEACHER">ለአንድ መምህር</option>
                   </select>
                 </div>
 
                 {/* Priority */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">የማስታወቂያው ደረጃ (Priority)</label>
+                  <label className="font-bold text-slate-700 block mb-1">ደረጃ (Priority)</label>
                   <select
                     value={formPriority}
                     onChange={(e) => setFormPriority(e.target.value as any)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-brand-500 font-medium"
                   >
                     <option value="NORMAL">መደበኛ (Normal)</option>
-                    <option value="IMPORTANT">አስፈላጊ / አስቸኳይ (Important - ይደምቃል)</option>
+                    <option value="IMPORTANT">አስፈላጊ / አስቸኳይ (Important)</option>
                   </select>
                 </div>
               </div>
+
+              {/* Event Date Picker (Required for EVENT category announcements) */}
+              {formCategory === 'EVENT' && (
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-1">
+                  <label className="font-bold text-indigo-950 block mb-1">
+                    የዝግጅቱ / ክስተቱ ቀን እና ሰዓት (Event Date & Time) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formEventDate}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormEventDate(val);
+                      if (!isManualExpiresAt && val) {
+                        const newExp = computeDefaultExpiration('EVENT', formPublishAt, val);
+                        setFormExpiresAt(newExp);
+                      }
+                    }}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                  <span className="text-[11px] text-indigo-800 block">
+                    የማስታወቂያው ነባሪ ማብቂያ ቀን ከዝግጅቱ ቀን 1 ቀን (24 ሰዓት) በኋላ በራስ-ሰር ይሰላል።
+                  </span>
+                </div>
+              )}
 
               {/* Dynamic Target Selection */}
               {formAudience === 'SPECIFIC_BATCH' && (
@@ -837,27 +1004,70 @@ export const AdminAnnouncementPage: React.FC = () => {
                     <input
                       type="datetime-local"
                       value={formPublishAt}
-                      onChange={(e) => setFormPublishAt(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormPublishAt(val);
+                        if (!isManualExpiresAt && formCategory !== 'EVENT') {
+                          const newExp = computeDefaultExpiration(formCategory, val, formEventDate);
+                          setFormExpiresAt(newExp);
+                        }
+                      }}
                       className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Expiration Date picker */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  የማስታወቂያው ማብቂያ ቀን እና ሰዓት (አማራጭ)
-                </label>
+              {/* Expiration Date picker with Category rule info and Manual Override Support */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <label className="font-bold text-slate-800 block text-xs">
+                    የማስታወቂያው ማብቂያ ቀን እና ሰዓት (Expiration Date)
+                  </label>
+                  {isManualExpiresAt && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsManualExpiresAt(false);
+                        const resetExp = computeDefaultExpiration(formCategory, formPublishAt, formEventDate);
+                        setFormExpiresAt(resetExp);
+                      }}
+                      className="text-[11px] text-brand-700 hover:text-brand-900 font-bold underline cursor-pointer"
+                    >
+                      ወደ ነባሪ መልስ (Reset to Default)
+                    </button>
+                  )}
+                </div>
+
                 <input
                   type="datetime-local"
                   value={formExpiresAt}
-                  onChange={(e) => setFormExpiresAt(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white font-medium"
+                  onChange={(e) => {
+                    setFormExpiresAt(e.target.value);
+                    setIsManualExpiresAt(true);
+                  }}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-500"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">
-                  ከተወሰነው ቀን በኋላ ማስታወቂያው ለተጠቃሚዎች አይታይም፤ ነገር ግን በአስተዳዳሪው ማህደር ውስጥ ይቀመጣል።
-                </span>
+
+                <div className="text-[11px] text-slate-500 space-y-0.5">
+                  <p>
+                    {isManualExpiresAt ? (
+                      <span className="text-amber-700 font-semibold">
+                        ✏️ በእጅ የተመረጠ ማብቂያ ሰዓት ተዘጋጅቷል (Manual Override)።
+                      </span>
+                    ) : (
+                      <span>
+                        ℹ️ ነባሪ ማብቂያ፦{' '}
+                        {formCategory === 'GENERAL' && 'አጠቃላይ ማስታወቂያ ከተለጠፈ ከ30 ቀናት በኋላ ያልፋል።'}
+                        {formCategory === 'EVENT' && 'የዝግጅት ማስታወቂያ ከዝግጅቱ ሰዓት 1 ቀን (24 ሰዓት) በኋላ ያልፋል።'}
+                        {formCategory === 'ACADEMIC' && 'አካዳሚክ ማስታወቂያ ከተለጠፈ ከ90 ቀናት በኋላ ያልፋል።'}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    ከተወሰነው ቀን በኋላ ማስታወቂያው ለተጠቃሚዎች አይታይም፤ ነገር ግን በአስተዳዳሪው ማህደር ውስጥ ይቀመጣል።
+                  </p>
+                </div>
               </div>
             </div>
 

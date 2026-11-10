@@ -145,6 +145,16 @@ export const AnnouncementFeed: React.FC<Props> = ({ className = '', maxDisplay, 
                           አዲስ
                         </span>
                       )}
+                      {item.category === 'EVENT' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          ዝግጅት
+                        </span>
+                      )}
+                      {item.category === 'ACADEMIC' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          አካዳሚክ
+                        </span>
+                      )}
                       <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
                         <Calendar className="w-3 h-3 text-slate-400" />
                         {publishDate}
@@ -222,6 +232,12 @@ export const AnnouncementFeed: React.FC<Props> = ({ className = '', maxDisplay, 
                     አስተዳዳሪ፦ {selectedAnnouncement.author}
                   </span>
                 </div>
+                {selectedAnnouncement.category === 'EVENT' && selectedAnnouncement.eventDate && (
+                  <div className="p-2.5 mt-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-950 font-bold flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>የዝግጅቱ ሰዓት፦ {toEthiopianDateString(new Date(selectedAnnouncement.eventDate))}</span>
+                  </div>
+                )}
               </div>
 
               {/* Message Content */}

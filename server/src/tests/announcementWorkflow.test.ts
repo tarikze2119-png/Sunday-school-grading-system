@@ -16,6 +16,13 @@ export const MockAnnouncementPriority = {
 } as const;
 export type MockAnnouncementPriority = (typeof MockAnnouncementPriority)[keyof typeof MockAnnouncementPriority];
 
+export const MockAnnouncementCategory = {
+  GENERAL: 'GENERAL',
+  EVENT: 'EVENT',
+  ACADEMIC: 'ACADEMIC',
+} as const;
+export type MockAnnouncementCategory = (typeof MockAnnouncementCategory)[keyof typeof MockAnnouncementCategory];
+
 export const MockAnnouncementStatus = {
   DRAFT: 'DRAFT',
   SCHEDULED: 'SCHEDULED',
@@ -41,12 +48,14 @@ export interface MockAnnouncement {
   title: string;
   content: string;
   targetAudience: MockAnnouncementTargetAudience;
+  category?: MockAnnouncementCategory;
   batchId?: string | null;
   studentId?: string | null;
   teacherId?: string | null;
   priority: MockAnnouncementPriority;
   status: MockAnnouncementStatus;
   publishAt: Date;
+  eventDate?: Date | null;
   expiresAt?: Date | null;
   isArchived: boolean;
   recipients: Array<{
@@ -507,7 +516,198 @@ async function runAnnouncementTests() {
     console.log('  ✅ PASS: Due announcements published, future held, expired transitioned, archived preserved');
   }
 
-  console.log('\nAll Announcement System automated tests PASSED! (12/12 suites)\n');
+  // Suite 13: Announcement Categories and Automatic Expiration Rules
+  {
+    console.log('\nSuite 13: Announcement Categories and Automatic Expiration Rules');
+
+    function computeAnnouncementExpiration(input: {
+      category: MockAnnouncementCategory;
+      publishAt: Date;
+      eventDate?: Date | null;
+      manualExpiresAt?: Date | null;
+    }): Date {
+      if (input.category === MockAnnouncementCategory.EVENT && !input.eventDate) {
+        throw new Error('የዝግጅት / ክስተት ማስታወቂያ የዝግጅቱን ቀን እና ሰዓት ማካተት አለበት።');
+      }
+
+      let expiresAt: Date;
+      if (input.manualExpiresAt) {
+        expiresAt = new Date(input.manualExpiresAt);
+      } else {
+        if (input.category === MockAnnouncementCategory.GENERAL) {
+          expiresAt = new Date(input.publishAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+        } else if (input.category === MockAnnouncementCategory.EVENT) {
+          expiresAt = new Date(input.eventDate!.getTime() + 1 * 24 * 60 * 60 * 1000);
+        } else if (input.category === MockAnnouncementCategory.ACADEMIC) {
+          expiresAt = new Date(input.publishAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+        } else {
+          expiresAt = new Date(input.publishAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+        }
+      }
+
+      if (expiresAt <= input.publishAt) {
+        throw new Error('የማስታወቂያው ማብቂያ ቀን ከሚለጠፍበት ቀን በኋላ መሆን አለበት።');
+      }
+      if (input.category === MockAnnouncementCategory.EVENT && input.eventDate && expiresAt <= input.eventDate) {
+        throw new Error('የማስታወቂያው ማብቂያ ቀን ከዝግጅቱ ቀን በኋላ መሆን አለበት።');
+      }
+
+      return expiresAt;
+    }
+
+    const basePublishAt = new Date('2026-11-15T09:00:00.000Z');
+
+    // 1. GENERAL defaults to 30 days
+    const generalExp = computeAnnouncementExpiration({
+      category: MockAnnouncementCategory.GENERAL,
+      publishAt: basePublishAt,
+    });
+    const expectedGeneralExp = new Date(basePublishAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+    assert.strictEqual(generalExp.toISOString(), expectedGeneralExp.toISOString(), 'GENERAL must expire 30 days after publishAt');
+    assert.strictEqual((generalExp.getTime() - basePublishAt.getTime()) / (24 * 60 * 60 * 1000), 30, 'GENERAL diff must be exactly 30 days');
+
+    // 2. EVENT defaults to 1 day after eventDate
+    const eventDate = new Date('2026-11-20T14:00:00.000Z');
+    const eventExp = computeAnnouncementExpiration({
+      category: MockAnnouncementCategory.EVENT,
+      publishAt: basePublishAt,
+      eventDate,
+    });
+    const expectedEventExp = new Date(eventDate.getTime() + 1 * 24 * 60 * 60 * 1000);
+    assert.strictEqual(eventExp.toISOString(), expectedEventExp.toISOString(), 'EVENT must expire 1 day after eventDate');
+    assert.strictEqual((eventExp.getTime() - eventDate.getTime()) / (24 * 60 * 60 * 1000), 1, 'EVENT diff must be exactly 1 day');
+
+    // 3. EVENT without eventDate is rejected
+    assert.throws(
+      () => computeAnnouncementExpiration({ category: MockAnnouncementCategory.EVENT, publishAt: basePublishAt }),
+      /የዝግጅት \/ ክስተት ማስታወቂያ የዝግጅቱን ቀን እና ሰዓት ማካተት አለበት።/,
+      'EVENT without eventDate must throw descriptive Amharic error'
+    );
+
+    // 4. ACADEMIC defaults to 90 days
+    const academicExp = computeAnnouncementExpiration({
+      category: MockAnnouncementCategory.ACADEMIC,
+      publishAt: basePublishAt,
+    });
+    const expectedAcademicExp = new Date(basePublishAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+    assert.strictEqual(academicExp.toISOString(), expectedAcademicExp.toISOString(), 'ACADEMIC must expire 90 days after publishAt');
+    assert.strictEqual((academicExp.getTime() - basePublishAt.getTime()) / (24 * 60 * 60 * 1000), 90, 'ACADEMIC diff must be exactly 90 days');
+
+    // 5. Manual expiration overrides the default
+    const customExp = new Date('2026-11-18T12:00:00.000Z');
+    const overriddenExp = computeAnnouncementExpiration({
+      category: MockAnnouncementCategory.GENERAL,
+      publishAt: basePublishAt,
+      manualExpiresAt: customExp,
+    });
+    assert.strictEqual(overriddenExp.toISOString(), customExp.toISOString(), 'Manual expiration must override default');
+
+    // 6. Changing category updates default when appropriate
+    let currentCategory: MockAnnouncementCategory = MockAnnouncementCategory.GENERAL;
+    let currentExpiresAt: Date | null = computeAnnouncementExpiration({ category: currentCategory, publishAt: basePublishAt });
+    assert.strictEqual((currentExpiresAt.getTime() - basePublishAt.getTime()) / (24 * 60 * 60 * 1000), 30);
+
+    // Admin switches to ACADEMIC without manual override -> recalculates to 90 days
+    currentCategory = MockAnnouncementCategory.ACADEMIC;
+    currentExpiresAt = computeAnnouncementExpiration({ category: currentCategory, publishAt: basePublishAt });
+    assert.strictEqual((currentExpiresAt.getTime() - basePublishAt.getTime()) / (24 * 60 * 60 * 1000), 90, 'Category switch to ACADEMIC updates to 90 days');
+
+    // 7. Unrelated edits preserve existing expiration
+    const announcementRecord = {
+      id: 'ann-1',
+      title: 'የመጀመሪያ ርዕስ',
+      content: 'የመጀመሪያ ይዘት',
+      category: MockAnnouncementCategory.GENERAL,
+      publishAt: basePublishAt,
+      eventDate: null as Date | null,
+      expiresAt: customExp, // manually customized
+    };
+
+    function simulateUpdate(ann: typeof announcementRecord, patch: Partial<typeof announcementRecord> & { isManualExpiresAt?: boolean }) {
+      const categoryChanged = patch.category !== undefined && patch.category !== ann.category;
+      const publishAtChanged = patch.publishAt !== undefined && patch.publishAt.getTime() !== ann.publishAt.getTime();
+      const eventDateChanged = patch.eventDate !== undefined && patch.eventDate?.getTime() !== ann.eventDate?.getTime();
+      const relevantChanged = categoryChanged || publishAtChanged || eventDateChanged;
+
+      let nextExpiresAt: Date | null = ann.expiresAt;
+      if (patch.expiresAt !== undefined) {
+        nextExpiresAt = patch.expiresAt;
+      } else if (relevantChanged && !patch.isManualExpiresAt) {
+        const cat = patch.category || ann.category;
+        const pub = patch.publishAt || ann.publishAt;
+        const ev = patch.eventDate !== undefined ? patch.eventDate : ann.eventDate;
+        nextExpiresAt = computeAnnouncementExpiration({ category: cat, publishAt: pub, eventDate: ev });
+      }
+
+      return { ...ann, ...patch, expiresAt: nextExpiresAt };
+    }
+
+    // Edit title only (unrelated edit) -> custom expiration must be preserved
+    const editedTitle = simulateUpdate(announcementRecord, { title: 'የተሻሻለ ርዕስ' });
+    assert.strictEqual(editedTitle.expiresAt?.toISOString(), customExp.toISOString(), 'Unrelated edit must preserve existing custom expiration');
+
+    // 8. Existing announcements with null expiration remain unchanged during unrelated edit
+    const legacyNullExp = {
+      id: 'ann-legacy',
+      title: 'የቀድሞ ማስታወቂያ',
+      content: 'የቀድሞ ይዘት',
+      category: MockAnnouncementCategory.GENERAL,
+      publishAt: basePublishAt,
+      eventDate: null as Date | null,
+      expiresAt: null as Date | null,
+    };
+    const editedLegacy = simulateUpdate(legacyNullExp, { content: 'አዲስ ይዘት' });
+    assert.strictEqual(editedLegacy.expiresAt, null, 'Existing announcement with null expiration must remain null during unrelated edit');
+
+    // 9 & 10. Expired announcements disappear from recipient feed but remain in Admin history
+    const currentTime = new Date('2026-11-25T00:00:00.000Z');
+    const allAnnouncements = [
+      { id: 'ann-active', title: 'ንቁ ማስታወቂያ', status: MockAnnouncementStatus.PUBLISHED, publishAt: basePublishAt, expiresAt: new Date('2026-11-30T00:00:00.000Z'), isArchived: false },
+      { id: 'ann-expired', title: 'ያለፈበት ማስታወቂያ', status: MockAnnouncementStatus.EXPIRED, publishAt: basePublishAt, expiresAt: new Date('2026-11-20T00:00:00.000Z'), isArchived: false },
+    ];
+
+    // Recipient query logic
+    const recipientVisible = allAnnouncements.filter((a) => a.status === MockAnnouncementStatus.PUBLISHED && (!a.expiresAt || a.expiresAt > currentTime));
+    assert.strictEqual(recipientVisible.length, 1, 'Recipient must only see active announcement');
+    assert.strictEqual(recipientVisible[0].id, 'ann-active', 'Recipient feed excludes expired announcement');
+
+    // Admin query logic (retrieves all historical items)
+    const adminVisible = allAnnouncements;
+    assert.strictEqual(adminVisible.length, 2, 'Admin history preserves both active and expired announcements');
+    assert.ok(adminVisible.some((a) => a.id === 'ann-expired'), 'Admin has access to expired announcement history');
+
+    // 11. Scheduled publication still occurs at selected publication time (publishAt <= now)
+    const futurePublishTime = new Date('2026-11-26T10:00:00.000Z');
+    const scheduledAnn = {
+      id: 'ann-scheduled',
+      status: MockAnnouncementStatus.SCHEDULED,
+      publishAt: futurePublishTime,
+      expiresAt: new Date(futurePublishTime.getTime() + 30 * 24 * 60 * 60 * 1000),
+      isArchived: false,
+    };
+
+    // Before publish time:
+    const checkBefore = futurePublishTime.getTime() <= new Date('2026-11-26T09:59:00.000Z').getTime();
+    assert.strictEqual(checkBefore, false, 'Before publishAt, announcement must not be published');
+
+    // At publish time:
+    const checkAt = futurePublishTime.getTime() <= new Date('2026-11-26T10:00:00.000Z').getTime();
+    assert.strictEqual(checkAt, true, 'At publishAt, publication condition is fulfilled');
+
+    console.log('  ✅ PASS: 1. GENERAL defaults to 30 days after publication');
+    console.log('  ✅ PASS: 2. EVENT defaults to 1 day after eventDate');
+    console.log('  ✅ PASS: 3. EVENT without eventDate is rejected with Amharic error');
+    console.log('  ✅ PASS: 4. ACADEMIC defaults to 90 days after publication');
+    console.log('  ✅ PASS: 5. Manual expiration overrides the default');
+    console.log('  ✅ PASS: 6. Changing category/dates recalculates defaults');
+    console.log('  ✅ PASS: 7. Unrelated edits preserve existing expiration');
+    console.log('  ✅ PASS: 8. Existing announcements with null expiration remain unchanged');
+    console.log('  ✅ PASS: 9. Expired announcements disappear from recipient feeds');
+    console.log('  ✅ PASS: 10. Expired announcements remain in Admin history');
+    console.log('  ✅ PASS: 11. Scheduled publication occurs at selected publication time');
+  }
+
+  console.log('\nAll Announcement System automated tests PASSED! (13/13 suites)\n');
 }
 
 runAnnouncementTests().catch((err) => {

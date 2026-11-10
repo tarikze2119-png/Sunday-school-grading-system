@@ -2,6 +2,7 @@ import prisma from '../config/prisma.client.js';
 import { 
   AnnouncementTargetAudience, 
   AnnouncementPriority, 
+  AnnouncementCategory,
   AnnouncementStatus, 
   UserRole,
   NotificationType 
@@ -12,32 +13,39 @@ export interface CreateAnnouncementInput {
   title: string;
   content: string;
   targetAudience: AnnouncementTargetAudience;
+  category?: AnnouncementCategory;
   priority?: AnnouncementPriority;
   status?: AnnouncementStatus;
   batchId?: string | null;
   studentId?: string | null;
   teacherId?: string | null;
   publishAt?: Date | string | null;
+  eventDate?: Date | string | null;
   expiresAt?: Date | string | null;
+  isManualExpiresAt?: boolean;
 }
 
 export interface UpdateAnnouncementInput {
   title?: string;
   content?: string;
   targetAudience?: AnnouncementTargetAudience;
+  category?: AnnouncementCategory;
   priority?: AnnouncementPriority;
   status?: AnnouncementStatus;
   batchId?: string | null;
   studentId?: string | null;
   teacherId?: string | null;
   publishAt?: Date | string | null;
+  eventDate?: Date | string | null;
   expiresAt?: Date | string | null;
+  isManualExpiresAt?: boolean;
 }
 
 export interface AnnouncementFilterOptions {
   status?: AnnouncementStatus | 'ALL';
   targetAudience?: AnnouncementTargetAudience | 'ALL';
   priority?: AnnouncementPriority | 'ALL';
+  category?: AnnouncementCategory | 'ALL';
   search?: string;
   page?: number;
   limit?: number;
@@ -194,12 +202,60 @@ export class AnnouncementService {
       throw new Error('የማስታወቂያ ዝርዝር መልእክት መሞላት አለበት።');
     }
 
+    const category = input.category || AnnouncementCategory.GENERAL;
+
     const now = new Date();
     const publishAtDate = input.publishAt ? new Date(input.publishAt) : now;
-    const expiresAtDate = input.expiresAt ? new Date(input.expiresAt) : null;
+    if (isNaN(publishAtDate.getTime())) {
+      throw new Error('ልክ ያልሆነ የሚለጠፍበት ቀን እና ሰዓት ተመርጧል።');
+    }
 
-    if (expiresAtDate && expiresAtDate <= publishAtDate) {
+    let eventDateParsed: Date | null = null;
+    if (category === AnnouncementCategory.EVENT) {
+      if (!input.eventDate) {
+        throw new Error('የዝግጅት / ክስተት ማስታወቂያ የዝግጅቱን ቀን እና ሰዓት ማካተት አለበት።');
+      }
+      eventDateParsed = new Date(input.eventDate);
+      if (isNaN(eventDateParsed.getTime())) {
+        throw new Error('ልክ ያልሆነ የዝግጅት ቀን እና ሰዓት ተመርጧል።');
+      }
+    } else if (input.eventDate) {
+      const parsed = new Date(input.eventDate);
+      if (!isNaN(parsed.getTime())) {
+        eventDateParsed = parsed;
+      }
+    }
+
+    // Expiration date calculation:
+    // If Admin explicitly provided expiresAt, use that manual override;
+    // otherwise calculate based on approved category defaults.
+    let calculatedExpiresAt: Date;
+    if (input.expiresAt) {
+      calculatedExpiresAt = new Date(input.expiresAt);
+      if (isNaN(calculatedExpiresAt.getTime())) {
+        throw new Error('ልክ ያልሆነ የማብቂያ ቀን እና ሰዓት ተመርጧል።');
+      }
+    } else {
+      if (category === AnnouncementCategory.GENERAL) {
+        // GENERAL: expires 30 days after publication
+        calculatedExpiresAt = new Date(publishAtDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      } else if (category === AnnouncementCategory.EVENT) {
+        // EVENT: expires 1 day after event date
+        calculatedExpiresAt = new Date(eventDateParsed!.getTime() + 1 * 24 * 60 * 60 * 1000);
+      } else if (category === AnnouncementCategory.ACADEMIC) {
+        // ACADEMIC: expires 90 days after publication
+        calculatedExpiresAt = new Date(publishAtDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+      } else {
+        calculatedExpiresAt = new Date(publishAtDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    if (calculatedExpiresAt <= publishAtDate) {
       throw new Error('የማስታወቂያው ማብቂያ ቀን ከሚለጠፍበት ቀን በኋላ መሆን አለበት።');
+    }
+
+    if (category === AnnouncementCategory.EVENT && eventDateParsed && calculatedExpiresAt <= eventDateParsed) {
+      throw new Error('የማስታወቂያው ማብቂያ ቀን ከዝግጅቱ ቀን በኋላ መሆን አለበት።');
     }
 
     let initialStatus = input.status || AnnouncementStatus.DRAFT;
@@ -220,13 +276,15 @@ export class AnnouncementService {
           title: input.title.trim(),
           content: input.content.trim(),
           targetAudience: input.targetAudience,
+          category,
           priority: input.priority || AnnouncementPriority.NORMAL,
           status: initialStatus,
           batchId: input.targetAudience === AnnouncementTargetAudience.SPECIFIC_BATCH ? input.batchId : null,
           studentId: input.targetAudience === AnnouncementTargetAudience.INDIVIDUAL_STUDENT ? input.studentId : null,
           teacherId: input.targetAudience === AnnouncementTargetAudience.INDIVIDUAL_TEACHER ? input.teacherId : null,
           publishAt: publishAtDate,
-          expiresAt: expiresAtDate,
+          eventDate: eventDateParsed,
+          expiresAt: calculatedExpiresAt,
           createdById: creatorUserId,
         },
       });
@@ -378,11 +436,66 @@ export class AnnouncementService {
     }
 
     const now = new Date();
+    const targetCategory = input.category || existing.category;
     const newPublishAt = input.publishAt !== undefined ? (input.publishAt ? new Date(input.publishAt) : now) : existing.publishAt;
-    const newExpiresAt = input.expiresAt !== undefined ? (input.expiresAt ? new Date(input.expiresAt) : null) : existing.expiresAt;
+    if (isNaN(newPublishAt.getTime())) {
+      throw new Error('ልክ ያልሆነ የሚለጠፍበት ቀን እና ሰዓት ተመርጧል።');
+    }
 
-    if (newExpiresAt && newExpiresAt <= newPublishAt) {
-      throw new Error('የማስታወቂያው ማብቂያ ቀን ከሚለጠፍበት ቀን በኋላ መሆን አለበት።');
+    let newEventDate: Date | null = existing.eventDate;
+    if (input.eventDate !== undefined) {
+      if (input.eventDate) {
+        newEventDate = new Date(input.eventDate);
+        if (isNaN(newEventDate.getTime())) {
+          throw new Error('ልክ ያልሆነ የዝግጅት ቀን እና ሰዓት ተመርጧል።');
+        }
+      } else {
+        newEventDate = null;
+      }
+    }
+
+    if (targetCategory === AnnouncementCategory.EVENT && !newEventDate) {
+      throw new Error('የዝግጅት / ክስተት ማስታወቂያ የዝግጅቱን ቀን እና ሰዓት ማካተት አለበት።');
+    }
+
+    // Check if relevant settings changed deliberately
+    const categoryChanged = input.category !== undefined && input.category !== existing.category;
+    const publishAtChanged = input.publishAt !== undefined && newPublishAt.getTime() !== existing.publishAt.getTime();
+    const eventDateChanged = input.eventDate !== undefined && ((newEventDate?.getTime() ?? null) !== (existing.eventDate?.getTime() ?? null));
+    const relevantSettingsChanged = categoryChanged || publishAtChanged || eventDateChanged;
+
+    let finalExpiresAt: Date | null = existing.expiresAt;
+
+    if (input.expiresAt !== undefined) {
+      if (input.expiresAt) {
+        finalExpiresAt = new Date(input.expiresAt);
+        if (isNaN(finalExpiresAt.getTime())) {
+          throw new Error('ልክ ያልሆነ የማብቂያ ቀን እና ሰዓት ተመርጧል።');
+        }
+      } else {
+        finalExpiresAt = null;
+      }
+    } else if (relevantSettingsChanged && !input.isManualExpiresAt) {
+      // Recalculate default when Admin deliberately changes category, publish date, or event date without a manual override
+      if (targetCategory === AnnouncementCategory.GENERAL) {
+        finalExpiresAt = new Date(newPublishAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      } else if (targetCategory === AnnouncementCategory.EVENT) {
+        finalExpiresAt = new Date(newEventDate!.getTime() + 1 * 24 * 60 * 60 * 1000);
+      } else if (targetCategory === AnnouncementCategory.ACADEMIC) {
+        finalExpiresAt = new Date(newPublishAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+      }
+    } else {
+      // Preserve existing expiration dates during unrelated edits (including existing nulls)
+      finalExpiresAt = existing.expiresAt;
+    }
+
+    if (finalExpiresAt) {
+      if (finalExpiresAt <= newPublishAt) {
+        throw new Error('የማስታወቂያው ማብቂያ ቀን ከሚለጠፍበት ቀን በኋላ መሆን አለበት።');
+      }
+      if (targetCategory === AnnouncementCategory.EVENT && newEventDate && finalExpiresAt <= newEventDate) {
+        throw new Error('የማስታወቂያው ማብቂያ ቀን ከዝግጅቱ ቀን በኋላ መሆን አለበት።');
+      }
     }
 
     const targetAudience = input.targetAudience || existing.targetAudience;
@@ -408,13 +521,15 @@ export class AnnouncementService {
           title: input.title !== undefined ? input.title.trim() : existing.title,
           content: input.content !== undefined ? input.content.trim() : existing.content,
           targetAudience,
+          category: targetCategory,
           priority: input.priority || existing.priority,
           status: targetStatus,
           batchId: targetAudience === AnnouncementTargetAudience.SPECIFIC_BATCH ? batchId : null,
           studentId: targetAudience === AnnouncementTargetAudience.INDIVIDUAL_STUDENT ? studentId : null,
           teacherId: targetAudience === AnnouncementTargetAudience.INDIVIDUAL_TEACHER ? teacherId : null,
           publishAt: newPublishAt,
-          expiresAt: newExpiresAt,
+          eventDate: newEventDate,
+          expiresAt: finalExpiresAt,
         },
       });
 
@@ -569,7 +684,9 @@ export class AnnouncementService {
       student: ann.student,
       teacherId: ann.teacherId,
       teacher: ann.teacher,
+      category: ann.category,
       publishAt: ann.publishAt,
+      eventDate: ann.eventDate,
       expiresAt: ann.expiresAt,
       isArchived: ann.isArchived,
       createdAt: ann.createdAt,
@@ -606,6 +723,10 @@ export class AnnouncementService {
 
     if (filters.priority && filters.priority !== 'ALL') {
       where.priority = filters.priority;
+    }
+
+    if (filters.category && filters.category !== 'ALL') {
+      where.category = filters.category;
     }
 
     if (filters.search?.trim()) {
@@ -648,7 +769,9 @@ export class AnnouncementService {
         batch: ann.batch,
         student: ann.student,
         teacher: ann.teacher,
+        category: ann.category,
         publishAt: ann.publishAt,
+        eventDate: ann.eventDate,
         expiresAt: ann.expiresAt,
         isArchived: ann.isArchived,
         createdAt: ann.createdAt,
@@ -772,7 +895,9 @@ export class AnnouncementService {
       content: r.announcement.content,
       priority: r.announcement.priority,
       targetAudience: r.announcement.targetAudience,
+      category: r.announcement.category,
       publishAt: r.announcement.publishAt,
+      eventDate: r.announcement.eventDate,
       expiresAt: r.announcement.expiresAt,
       isRead: r.isRead,
       readAt: r.readAt,
@@ -821,7 +946,9 @@ export class AnnouncementService {
       title: recipient.announcement.title,
       content: recipient.announcement.content,
       priority: recipient.announcement.priority,
+      category: recipient.announcement.category,
       publishAt: recipient.announcement.publishAt,
+      eventDate: recipient.announcement.eventDate,
       expiresAt: recipient.announcement.expiresAt,
       author: `${recipient.announcement.createdBy.firstName} ${recipient.announcement.createdBy.lastName}`,
       isRead: true,
