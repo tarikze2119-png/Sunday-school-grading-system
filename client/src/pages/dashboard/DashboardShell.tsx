@@ -193,7 +193,7 @@ export const DashboardShell: React.FC = () => {
       {/* Professional Footer in Amharic */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <p className="font-medium">
-          © 2016-2026 ሐይመተ አብርሃም ሰንበት ትምህርት ቤት | የውጤት አስተዳደር ማዕከል
+          © 2019-2026 ሐይመተ አብርሃም ሰንበት ትምህርት ቤት | ትምህርት ክፍል
         </p>
       </footer>
 

@@ -132,7 +132,7 @@ export const LoginPage: React.FC = () => {
 
         {/* Institutional Footer */}
         <p className="mt-8 text-center text-xs text-slate-300 font-medium">
-          © 2016-2026 ሐይመተ አብርሃም ሰንበት ትምህርት ቤት | የውጤት አስተዳደር ማዕከል
+          © 2019-2026 ሐይመተ አብርሃም ሰንበት ትምህርት ቤት | ትምህርት ክፍል
         </p>
       </div>
     </div>
