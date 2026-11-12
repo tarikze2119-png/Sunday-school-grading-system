@@ -4,6 +4,7 @@ import prisma from '../config/prisma.client.js';
 
 /**
  * Ensures students can only access their own student records.
+ * Teachers can only access students enrolled in at least one course assigned to that teacher.
  * Admins, Super Admins, and Management can access any student record.
  */
 export const verifyStudentRecordOwnership = async (
@@ -24,11 +25,24 @@ export const verifyStudentRecordOwnership = async (
     return next();
   }
 
-  const requestedStudentId = req.params.studentId || req.query.studentId;
+  let requestedStudentId = (req.params.studentId || req.query.studentId) as string;
 
+  // 1. Student Role: Strict Self-Access Only
   if (req.user.role === UserRole.STUDENT) {
-    // Check if the student's own ID matches requested ID
-    if (req.user.studentId && req.user.studentId === requestedStudentId) {
+    if (requestedStudentId === 'me') {
+      return next();
+    }
+
+    let myStudentId = req.user.studentId;
+    if (!myStudentId) {
+      const studentProfile = await prisma.student.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true },
+      });
+      myStudentId = studentProfile?.id;
+    }
+
+    if (myStudentId && myStudentId === requestedStudentId) {
       return next();
     }
 
@@ -38,13 +52,53 @@ export const verifyStudentRecordOwnership = async (
     });
   }
 
-  // Teachers are verified via course enrollment context
-  next();
+  // 2. Teacher Role: Course Assignment & Enrollment Context Verification
+  if (req.user.role === UserRole.TEACHER) {
+    if (!requestedStudentId || requestedStudentId === 'me') {
+      return res.status(400).json({
+        success: false,
+        message: 'የተማሪ መለያ አልተገለጸም።',
+      });
+    }
+
+    // Verify database relationship: Teacher must be assigned to at least one course
+    // offering in which the requested student is enrolled.
+    const assignments = await prisma.teacherAssignment.findMany({
+      where: {
+        teacher: { userId: req.user.id },
+        courseOffering: {
+          enrollments: {
+            some: { studentId: requestedStudentId },
+          },
+        },
+      },
+      select: {
+        courseOfferingId: true,
+      },
+    });
+
+    if (assignments.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'መምህሩ ይህንን ተማሪ የሚያስተምሩበት የኮርስ ምደባ የለም።',
+      });
+    }
+
+    // Attach verified offering IDs to request object for strict service-level scoping
+    (req as any).allowedOfferingIds = assignments.map((a) => a.courseOfferingId);
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: 'ይህንን መረጃ የመመልከት ፈቃድ የለዎትም።',
+  });
 };
 
 /**
  * Ensures teachers can only view or mutate grades of course offerings assigned to them.
  * Super Admins and Admins can view/manage all course offerings.
+ * Management has read-only oversight.
  */
 export const verifyTeacherCourseAssignment = async (
   req: Request,
@@ -55,9 +109,20 @@ export const verifyTeacherCourseAssignment = async (
     return res.status(401).json({ success: false, message: 'እባክዎ መጀመሪያ ይግቡ።' });
   }
 
-  // Admins have override review privileges
+  // Admins and Super Admins have override privileges
   if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
     return next();
+  }
+
+  // Management has read-only oversight
+  if (req.user.role === UserRole.MANAGEMENT) {
+    if (req.method === 'GET') {
+      return next();
+    }
+    return res.status(403).json({
+      success: false,
+      message: 'የአመራር ሚና ውጤት የማሻሻል ወይም የማስገባት ፈቃድ የለውም።',
+    });
   }
 
   const courseOfferingId = req.params.offeringId || req.body.courseOfferingId;
@@ -83,7 +148,6 @@ export const verifyTeacherCourseAssignment = async (
     return next();
   }
 
-  // Other roles not permitted
   return res.status(403).json({
     success: false,
     message: 'ይህንን ተግባር ለማከናወን ፈቃድ የለዎትም።',

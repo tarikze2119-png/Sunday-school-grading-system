@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StudentPublishedResultsResponse, 
-  StudentTranscript 
-} from '../../types/grade.types';
+import { StudentPublishedResultsResponse } from '../../types/grade.types';
 import { StudentMultiYearHistoryResponse } from '../../types/report.types';
 import gradeService from '../../services/gradeService';
 import reportService from '../../services/reportService';
-import ReportCardModal from '../../components/grades/ReportCardModal';
-import MultiYearTranscriptModal from '../../components/grades/MultiYearTranscriptModal';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import { toEthiopianDateString } from '../../utils/ethiopianCalendar';
@@ -15,7 +10,6 @@ import {
   Award, 
   BookOpen, 
   CheckCircle2, 
-  Printer, 
   Clock, 
   Calendar, 
   Layers, 
@@ -30,20 +24,16 @@ import {
 
 export const StudentResultsPage: React.FC = () => {
   const [data, setData] = useState<StudentPublishedResultsResponse | null>(null);
-  const [transcriptData, setTranscriptData] = useState<StudentTranscript | null>(null);
   const [multiYearData, setMultiYearData] = useState<StudentMultiYearHistoryResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals
-  const [isReportCardOpen, setIsReportCardOpen] = useState(false);
-  const [isMultiYearModalOpen, setIsMultiYearModalOpen] = useState(false);
-
   const fetchResults = async () => {
     try {
       setLoading(true);
       setError(null);
+      // Students access their own published grade reports and academic history
       const [pubRes, histRes] = await Promise.all([
         gradeService.getStudentPublishedResults().catch(() => null),
         reportService.getStudentAcademicHistory('me').catch(() => null),
@@ -51,11 +41,6 @@ export const StudentResultsPage: React.FC = () => {
 
       setData(pubRes);
       setMultiYearData(histRes);
-
-      if (pubRes?.student?.id) {
-        const trans = await gradeService.getStudentTranscript(pubRes.student.id).catch(() => null);
-        setTranscriptData(trans);
-      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'የውጤት ዝርዝርዎን መጫን አልተቻለም።');
     } finally {
@@ -67,7 +52,7 @@ export const StudentResultsPage: React.FC = () => {
     fetchResults();
   }, []);
 
-  const latestTerm = transcriptData?.academicTerms[transcriptData.academicTerms.length - 1];
+  const latestTerm = multiYearData?.historyTerms[multiYearData.historyTerms.length - 1];
 
   return (
     <div className="space-y-6 font-ethiopic">
@@ -105,35 +90,22 @@ export const StudentResultsPage: React.FC = () => {
                 <Layers className="w-3.5 h-3.5 text-gold-400" />
                 የአሁኑ ምድብ፦ <strong>{latestTerm?.batchName || 'ምድብ 2 (ወጣቶች)'}</strong>
               </span>
-              {(transcriptData?.student.guardianName || multiYearData?.student.guardianName) && (
+              {multiYearData?.student.guardianName && (
                 <span className="flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-slate-400" />
-                  አሳዳጊ፦ {transcriptData?.student.guardianName || multiYearData?.student.guardianName}
+                  አሳዳጊ፦ {multiYearData.student.guardianName}
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Action Buttons: Official Documents */}
+        {/* Grade Center Status Badge */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-start md:self-auto shrink-0">
-          {multiYearData && multiYearData.historyTerms.length > 0 && (
-            <button
-              onClick={() => setIsMultiYearModalOpen(true)}
-              className="px-4 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
-            >
-              <History className="w-4 h-4 text-gold-400" /> ይፋዊ የትምህርት ታሪክ (Transcript)
-            </button>
-          )}
-
-          {data && data.results.length > 0 && (
-            <button
-              onClick={() => setIsReportCardOpen(true)}
-              className="px-4 py-2.5 bg-gold-600 hover:bg-gold-700 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
-            >
-              <Printer className="w-4 h-4" /> ይፋዊ የውጤት ካርድ (Report Card)
-            </button>
-          )}
+          <div className="px-4 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-slate-300 font-bold flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-gold-400" />
+            <span>የትምህርት ውጤት መዝገብ</span>
+          </div>
         </div>
       </div>
 
@@ -383,9 +355,9 @@ export const StudentResultsPage: React.FC = () => {
                       </span>
                       <strong className="text-xs text-slate-900 block">{c.courseName}</strong>
                     </div>
-                    {c.score !== null ? (
+                    {c.totalScore !== null && c.totalScore !== undefined ? (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        {c.letterGrade} ({c.score}%)
+                        {c.letterGrade} ({c.totalScore}%)
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-600">
@@ -536,21 +508,6 @@ export const StudentResultsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Official Report Card Modal */}
-      {isReportCardOpen && transcriptData && (
-        <ReportCardModal
-          transcript={transcriptData}
-          onClose={() => setIsReportCardOpen(false)}
-        />
-      )}
-
-      {/* Official Multi-Year Transcript Modal */}
-      {isMultiYearModalOpen && multiYearData && (
-        <MultiYearTranscriptModal
-          data={multiYearData}
-          onClose={() => setIsMultiYearModalOpen(false)}
-        />
-      )}
     </div>
   );
 };

@@ -2,6 +2,10 @@ import { Router } from 'express';
 import gradeController from '../controllers/grade.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
 import { authorizeRole } from '../middlewares/authorize.js';
+import {
+  verifyTeacherCourseAssignment,
+  verifyStudentRecordOwnership,
+} from '../middlewares/ownershipGuards.js';
 import { UserRole } from '@prisma/client';
 
 const router = Router();
@@ -51,18 +55,21 @@ router.get(
 router.get(
   '/offerings/:offeringId/sheet',
   authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGEMENT]),
+  verifyTeacherCourseAssignment,
   (req, res) => gradeController.getOfferingGradesSheet(req, res)
 );
 
 router.put(
   '/offerings/:offeringId/draft',
   authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  verifyTeacherCourseAssignment,
   (req, res) => gradeController.saveDraftGrades(req, res)
 );
 
 router.post(
   '/offerings/:offeringId/submit',
   authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  verifyTeacherCourseAssignment,
   (req, res) => gradeController.submitGradesForApproval(req, res)
 );
 
@@ -129,6 +136,7 @@ router.get(
 router.get(
   '/reports/course/:offeringId',
   authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGEMENT, UserRole.TEACHER]),
+  verifyTeacherCourseAssignment,
   (req, res) => gradeController.getCourseReport(req, res)
 );
 
@@ -140,7 +148,7 @@ router.get(
 
 router.get(
   '/reports/transcript/:studentId',
-  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGEMENT, UserRole.TEACHER, UserRole.STUDENT]),
+  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGEMENT]),
   (req, res) => gradeController.getStudentTranscript(req, res)
 );
 

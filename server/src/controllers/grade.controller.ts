@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import gradeService from '../services/grade.service.js';
+import transcriptService from '../services/transcript.service.js';
 import prisma from '../config/prisma.client.js';
 
 export class GradeController {
@@ -284,10 +285,13 @@ export class GradeController {
   async getCourseReport(req: Request, res: Response): Promise<void> {
     try {
       const { offeringId } = req.params;
-      const report = await gradeService.getCourseReport(offeringId);
+      const requestingUserId = req.user!.id;
+      const requestingUserRole = req.user!.role;
+      const report = await gradeService.getCourseReport(offeringId, requestingUserId, requestingUserRole);
       res.status(200).json({ success: true, data: report });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      const statusCode = error.message?.includes('ፈቃድ የለዎትም') ? 403 : 400;
+      res.status(statusCode).json({ success: false, message: error.message });
     }
   }
 
@@ -307,24 +311,26 @@ export class GradeController {
       const requestingUserRole = req.user!.role;
       const requestingUserId = req.user!.id;
 
-      // If student is requesting, enforce they only request their own transcript
-      if (requestingUserRole === 'STUDENT') {
-        const studentProfile = await prisma.student.findUnique({
-          where: { userId: requestingUserId },
+      // Official transcripts are institutional documents managed exclusively by authorized administrators.
+      // Students and Teachers must NOT have access to official transcripts.
+      // Teachers must access course-specific reports (/reports/course/:offeringId) rather than transcripts.
+      if (requestingUserRole === 'STUDENT' || requestingUserRole === 'TEACHER') {
+        res.status(403).json({
+          success: false,
+          message: 'ይፋዊ የትምህርት ማስረጃ (Official Transcript) የመመልከት ፈቃድ የለዎትም። ሰነዱ በአስተዳዳሪዎች ብቻ የሚዘጋጅ እና የሚተዳደር ነው።',
         });
-        if (!studentProfile || studentProfile.id !== studentId) {
-          res.status(403).json({
-            success: false,
-            message: 'የሌላ ተማሪን የውጤት ካርድ የመመልከት ፈቃድ የለዎትም።',
-          });
-          return;
-        }
+        return;
       }
 
-      const transcript = await gradeService.getStudentTranscript(studentId);
+      const transcript = await transcriptService.getOfficialTranscript(
+        studentId,
+        requestingUserId,
+        requestingUserRole
+      );
       res.status(200).json({ success: true, data: transcript });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      const statusCode = error.message?.includes('ፈቃድ የለዎትም') ? 403 : 400;
+      res.status(statusCode).json({ success: false, message: error.message });
     }
   }
 }

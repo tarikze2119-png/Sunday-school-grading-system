@@ -3,6 +3,7 @@ import reportService, { ReportFilterParams } from '../../services/reportService'
 import academicService from '../../services/academicService';
 import courseService from '../../services/courseService';
 import teacherService from '../../services/teacherService';
+import transcriptService from '../../services/transcriptService';
 import MultiYearTranscriptModal from '../../components/grades/MultiYearTranscriptModal';
 import { StudentMultiYearHistoryResponse } from '../../types/report.types';
 import Badge from '../../components/common/Badge';
@@ -185,12 +186,12 @@ export const ManagementReportsPage: React.FC = () => {
     if (!studentId) return;
     try {
       setLoadingTranscriptId(studentId);
-      const history = await reportService.getStudentAcademicHistory(studentId);
-      if (history) {
-        setSelectedStudentTranscript(history);
+      const doc = await transcriptService.getOfficialTranscript(studentId);
+      if (doc) {
+        setSelectedStudentTranscript(doc);
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'የተማሪውን የትምህርት ታሪክ መጫን አልተቻለም።');
+      alert(err.response?.data?.message || err.message || 'ይፋዊ የተማሪ የትምህርት ማስረጃ መጫን አልተቻለም።');
     } finally {
       setLoadingTranscriptId(null);
     }

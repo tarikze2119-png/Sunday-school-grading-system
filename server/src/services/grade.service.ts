@@ -1650,7 +1650,11 @@ export class GradeService {
   /**
    * Course-wise Results Report
    */
-  async getCourseReport(courseOfferingId: string) {
+  async getCourseReport(
+    courseOfferingId: string,
+    requestingUserId?: string,
+    requestingUserRole?: string
+  ) {
     const offering = await prisma.courseOffering.findUnique({
       where: { id: courseOfferingId },
       include: {
@@ -1669,6 +1673,17 @@ export class GradeService {
     });
 
     if (!offering) throw new Error('የተመረጠው የኮርስ ምደባ አልተገኘም።');
+
+    // Role Security Guards:
+    // Teachers may only access grade records belonging to their assigned course offerings
+    if (requestingUserRole === 'TEACHER' && requestingUserId) {
+      const isAssigned = offering.teacherAssignments.some(
+        (ta) => ta.teacher.userId === requestingUserId
+      );
+      if (!isAssigned) {
+        throw new Error('ይህንን የኮርስ ውጤት ሪፖርት የመመልከት ፈቃድ የለዎትም።');
+      }
+    }
 
     const totalStudents = offering.enrollments.length;
     let passedCount = 0;
@@ -1777,8 +1792,9 @@ export class GradeService {
 
   /**
    * Official Student Academic Transcript (የተማሪ የውጤት ካርድ / Transcript)
+   * Scoped by allowedOfferingIds when queried by a Teacher.
    */
-  async getStudentTranscript(studentId: string) {
+  async getStudentTranscript(studentId: string, allowedOfferingIds?: string[]) {
     const student = await prisma.student.findUnique({
       where: { id: studentId },
       include: {
@@ -1815,6 +1831,12 @@ export class GradeService {
     const historyMap = new Map<string, any>();
 
     for (const enr of student.enrollments) {
+      // CRITICAL TEACHER PRIVACY FILTER:
+      // If allowedOfferingIds is specified, only include assigned course offerings
+      if (allowedOfferingIds && !allowedOfferingIds.includes(enr.courseOfferingId)) {
+        continue;
+      }
+
       const offering = enr.courseOffering;
       const yearName = offering.academicYear.name;
       const batchName = offering.batch.name;

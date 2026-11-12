@@ -597,8 +597,9 @@ export class ReportService {
    * 10. Student Multi-Year Academic History
    * Returns chronological snapshot across academic years & batches.
    * Prior records are never overwritten!
+   * Scoped by allowedOfferingIds when queried by a Teacher.
    */
-  async getStudentAcademicHistory(studentId: string) {
+  async getStudentAcademicHistory(studentId: string, allowedOfferingIds?: string[]) {
     const student = await prisma.student.findUnique({
       where: { id: studentId },
       include: {
@@ -673,11 +674,24 @@ export class ReportService {
       const batchId = reg.batchId;
 
       // Filter enrollments for this year and batch
-      const termEnrollments = student.enrollments.filter(
+      let termEnrollments = student.enrollments.filter(
         (e) =>
           e.courseOffering.academicYearId === yearId &&
           e.courseOffering.batchId === batchId
       );
+
+      // CRITICAL TEACHER PRIVACY FILTER:
+      // If allowedOfferingIds is specified, only retain enrollments in assigned courses
+      if (allowedOfferingIds && allowedOfferingIds.length > 0) {
+        termEnrollments = termEnrollments.filter((e) =>
+          allowedOfferingIds.includes(e.courseOfferingId)
+        );
+      }
+
+      // If no enrollments remain in this term for the teacher, omit this term from history
+      if (allowedOfferingIds && termEnrollments.length === 0) {
+        continue;
+      }
 
       let termPoints = 0;
       let termCredits = 0;

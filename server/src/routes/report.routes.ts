@@ -2,15 +2,17 @@ import { Router } from 'express';
 import reportController from '../controllers/report.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
 import { authorizeRole } from '../middlewares/authorize.js';
+import { verifyStudentRecordOwnership } from '../middlewares/ownershipGuards.js';
 import { UserRole } from '@prisma/client';
 
 const router = Router();
 
 router.use(authenticateJwt);
 
-// Student Academic History (Accessible to Student for self, and Admin/Management for any student)
+// Student Academic History (Accessible to Student for self, Teacher for shared-course students, and Admin/Management)
 router.get(
   '/student-history/:studentId',
+  verifyStudentRecordOwnership,
   (req, res) => reportController.getStudentAcademicHistory(req, res)
 );
 

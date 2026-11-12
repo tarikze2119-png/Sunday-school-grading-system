@@ -12,6 +12,7 @@ import reportRoutes from './report.routes.js';
 import notificationRoutes from './notification.routes.js';
 import gradingSchemeRoutes from './gradingScheme.routes.js';
 import announcementRoutes from './announcement.routes.js';
+import transcriptRoutes from './transcript.routes.js';
 
 const router = Router();
 
@@ -41,5 +42,8 @@ router.use('/grading-schemes', gradingSchemeRoutes);
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/announcements', announcementRoutes);
+
+// Institutional Official Transcripts (Admin, Super Admin, Management)
+router.use('/transcripts', transcriptRoutes);
 
 export default router;

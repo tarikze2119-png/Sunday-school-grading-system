@@ -109,8 +109,9 @@ export class ReportController {
       let studentId = req.params.studentId;
       const requestingUserRole = (req as any).user?.role;
       const userId = (req as any).user?.id;
+      const allowedOfferingIds = (req as any).allowedOfferingIds as string[] | undefined;
 
-      // Security Guard: Students can ONLY access their own academic history
+      // Security Guard 1: Students can ONLY access their own academic history
       if (requestingUserRole === 'STUDENT') {
         const student = await prisma.student.findUnique({
           where: { userId },
@@ -125,8 +126,46 @@ export class ReportController {
           });
         }
         studentId = student.id;
-      } else if (!studentId || studentId === 'me') {
-        // Fallback for Admin/Management testing with 'me'
+        const data = await reportService.getStudentAcademicHistory(studentId);
+        return res.status(200).json({ success: true, data });
+      }
+
+      // Security Guard 2: Teachers can only access students enrolled in their assigned courses,
+      // and only see grades belonging to their assigned course offerings.
+      if (requestingUserRole === 'TEACHER') {
+        if (!studentId || studentId === 'me') {
+          return res.status(400).json({ success: false, message: 'የተማሪ መለያ አልተገለጸም።' });
+        }
+
+        let teacherOfferings = allowedOfferingIds;
+        if (!teacherOfferings) {
+          const assignments = await prisma.teacherAssignment.findMany({
+            where: {
+              teacher: { userId },
+              courseOffering: {
+                enrollments: {
+                  some: { studentId },
+                },
+              },
+            },
+            select: { courseOfferingId: true },
+          });
+
+          if (assignments.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'መምህሩ ይህንን ተማሪ የሚያስተምሩበት የኮርስ ምደባ የለም።',
+            });
+          }
+          teacherOfferings = assignments.map((a) => a.courseOfferingId);
+        }
+
+        const data = await reportService.getStudentAcademicHistory(studentId, teacherOfferings);
+        return res.status(200).json({ success: true, data });
+      }
+
+      // Admin, Super Admin, Management
+      if (!studentId || studentId === 'me') {
         const student = await prisma.student.findUnique({
           where: { userId },
         });
