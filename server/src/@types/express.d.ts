@@ -12,6 +12,7 @@ declare global {
         lastName: string;
         studentId?: string;
         teacherId?: string;
+        tokenVersion?: number;
       };
     }
   }

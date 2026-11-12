@@ -148,6 +148,13 @@ export class AuthController {
         userAgent
       );
 
+      // Clear refresh token cookie on current client so old session cannot be refreshed
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+      });
+
       res.status(200).json({
         success: true,
         message: result.message,

@@ -62,9 +62,13 @@ export class AuthService {
       lastName: user.lastName,
       studentId: user.studentProfile?.id,
       teacherId: user.teacherProfile?.id,
+      tokenVersion: user.tokenVersion,
     });
 
-    const refreshToken = signRefreshToken({ userId: user.id });
+    const refreshToken = signRefreshToken({
+      userId: user.id,
+      tokenVersion: user.tokenVersion,
+    });
 
     // Update lastLoginAt
     await prisma.user.update({
@@ -112,7 +116,21 @@ export class AuthService {
       throw error;
     }
 
-    const decoded = verifyRefreshToken(refreshToken);
+    let decoded: any;
+    try {
+      decoded = verifyRefreshToken(refreshToken);
+    } catch (err: any) {
+      const error: any = new Error('የማደሻ ፈቃድዎ ጊዜው አልፎበታል፤ እባክዎ እንደገና ይግቡ።');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    if (!decoded || !decoded.userId) {
+      const error: any = new Error('ልክ ያልሆነ የማደሻ ማስረጃ።');
+      error.statusCode = 401;
+      throw error;
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: {
@@ -127,6 +145,13 @@ export class AuthService {
       throw error;
     }
 
+    // Token version check: reject tokens without tokenVersion or with mismatched version
+    if (typeof decoded.tokenVersion !== 'number' || decoded.tokenVersion !== user.tokenVersion) {
+      const error: any = new Error('የይለፍ ቃል ስለተቀየረ ወይም የማደሻ ፈቃድዎ ስለተሰረዘ እባክዎ እንደገና ይግቡ።');
+      error.statusCode = 401;
+      throw error;
+    }
+
     const newAccessToken = signAccessToken({
       userId: user.id,
       username: user.username,
@@ -136,6 +161,7 @@ export class AuthService {
       lastName: user.lastName,
       studentId: user.studentProfile?.id,
       teacherId: user.teacherProfile?.id,
+      tokenVersion: user.tokenVersion,
     });
 
     return { accessToken: newAccessToken };
@@ -174,7 +200,10 @@ export class AuthService {
     const newPasswordHash = await bcrypt.hash(newPass, 12);
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: newPasswordHash },
+      data: {
+        passwordHash: newPasswordHash,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     await logAuditEvent({
@@ -237,7 +266,10 @@ export class AuthService {
     const newHash = await bcrypt.hash(newPass, 12);
     await prisma.user.update({
       where: { id: targetUserId },
-      data: { passwordHash: newHash },
+      data: {
+        passwordHash: newHash,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     await logAuditEvent({

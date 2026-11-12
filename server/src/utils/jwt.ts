@@ -11,6 +11,12 @@ export interface TokenPayload {
   lastName: string;
   studentId?: string;
   teacherId?: string;
+  tokenVersion: number;
+}
+
+export interface RefreshTokenPayload {
+  userId: string;
+  tokenVersion: number;
 }
 
 export const signAccessToken = (payload: TokenPayload): string => {
@@ -19,7 +25,7 @@ export const signAccessToken = (payload: TokenPayload): string => {
   });
 };
 
-export const signRefreshToken = (payload: { userId: string }): string => {
+export const signRefreshToken = (payload: RefreshTokenPayload): string => {
   return jwt.sign(payload, ENV.JWT_REFRESH_SECRET, {
     expiresIn: ENV.JWT_REFRESH_EXPIRATION as any,
   });
@@ -29,6 +35,6 @@ export const verifyAccessToken = (token: string): TokenPayload => {
   return jwt.verify(token, ENV.JWT_ACCESS_SECRET) as TokenPayload;
 };
 
-export const verifyRefreshToken = (token: string): { userId: string } => {
-  return jwt.verify(token, ENV.JWT_REFRESH_SECRET) as { userId: string };
+export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
+  return jwt.verify(token, ENV.JWT_REFRESH_SECRET) as RefreshTokenPayload;
 };
