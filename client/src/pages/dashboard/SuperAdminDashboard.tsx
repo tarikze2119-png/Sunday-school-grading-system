@@ -54,6 +54,10 @@ export const SuperAdminDashboard: React.FC = () => {
   const [resettingUser, setResettingUser] = useState<any | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
+  // Admin Responsibilities Modal State
+  const [editingResponsibilitiesUser, setEditingResponsibilitiesUser] = useState<any | null>(null);
+  const [selectedResponsibilities, setSelectedResponsibilities] = useState<string[]>([]);
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -176,6 +180,85 @@ export const SuperAdminDashboard: React.FC = () => {
       setNewPassword('');
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'የይለፍ ቃል መቀየር አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAppointGeneralAdmin = async (targetUserId: string, targetUsername: string) => {
+    if (!window.confirm(`ተጠቃሚ '${targetUsername}'ን በዋና አስተዳዳሪነት (General Admin) ለመሾም እርግጠኛ ነዎት?`)) return;
+    try {
+      setActionLoading(true);
+      const res = await api.post('/system-admin/general-admin/appoint', { targetUserId });
+      setAlertMsg({ type: 'success', text: res.data.message || 'ዋና አስተዳዳሪ በተሳካ ሁኔታ ተሹሟል።' });
+      setTimeout(() => setAlertMsg(null), 3500);
+      await fetchUsers();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ዋና አስተዳዳሪ መሾም አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevokeGeneralAdmin = async (targetUsername: string) => {
+    if (!window.confirm(`የተጠቃሚ '${targetUsername}'ን የዋና አስተዳዳሪነት ሹመት ለመሻር እርግጠኛ ነዎት?`)) return;
+    try {
+      setActionLoading(true);
+      const res = await api.post('/system-admin/general-admin/revoke', {});
+      setAlertMsg({ type: 'success', text: res.data.message || 'የዋና አስተዳዳሪነት ሹመት ተሽሯል።' });
+      setTimeout(() => setAlertMsg(null), 3500);
+      await fetchUsers();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'የዋና አስተዳዳሪነት ሹመት መሻር አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSoftDeleteUser = async (targetUserId: string, targetUsername: string) => {
+    if (!window.confirm(`ተጠቃሚ '${targetUsername}'ን ከሲስተሙ ለመሰረዝ (Soft delete) እርግጠኛ ነዎት?`)) return;
+    try {
+      setActionLoading(true);
+      const res = await api.delete(`/users/${targetUserId}`);
+      setAlertMsg({ type: 'success', text: res.data.message || 'ተጠቃሚው በተሳካ ሁኔታ ተሰርዟል።' });
+      setTimeout(() => setAlertMsg(null), 3500);
+      await fetchUsers();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ተጠቃሚውን መሰረዝ አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestoreUser = async (targetUserId: string, targetUsername: string) => {
+    if (!window.confirm(`የተሰረዘውን ተጠቃሚ '${targetUsername}' ወደ ሲስተሙ ለመመለስ (Restore) እርግጠኛ ነዎት?`)) return;
+    try {
+      setActionLoading(true);
+      const res = await api.patch(`/users/${targetUserId}/restore`);
+      setAlertMsg({ type: 'success', text: res.data.message || 'ተጠቃሚው በተሳካ ሁኔታ ተመልሷል።' });
+      setTimeout(() => setAlertMsg(null), 3500);
+      await fetchUsers();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ተጠቃሚውን መመለስ አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSaveResponsibilities = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingResponsibilitiesUser) return;
+    try {
+      setActionLoading(true);
+      const res = await api.patch(`/users/${editingResponsibilitiesUser.id}/responsibilities`, {
+        responsibilities: selectedResponsibilities,
+      });
+      setAlertMsg({ type: 'success', text: res.data.message || 'ኃላፊነቶች በተሳካ ሁኔታ ተመድበዋል።' });
+      setTimeout(() => setAlertMsg(null), 3500);
+      setEditingResponsibilitiesUser(null);
+      await fetchUsers();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ኃላፊነቶችን መመደብ አልተቻለም።' });
     } finally {
       setActionLoading(false);
     }
@@ -481,12 +564,46 @@ export const SuperAdminDashboard: React.FC = () => {
                           <div className="text-[10px] text-slate-400">{u.email || ''}</div>
                         </td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800">
-                            {getAmharicRoleName(u.role)}
-                          </span>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              {u.isGeneralAdmin ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                  ⭐ ዋና አስተዳዳሪ (GA)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800">
+                                  {getAmharicRoleName(u.role)}
+                                </span>
+                              )}
+                            </div>
+                            {u.role === 'ADMIN' && u.adminResponsibilities && u.adminResponsibilities.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {u.adminResponsibilities.map((resp: string) => (
+                                  <span
+                                    key={resp}
+                                    className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200"
+                                  >
+                                    {resp === 'ANNOUNCEMENT_ADMIN'
+                                      ? 'ማስታወቂያ'
+                                      : resp === 'USER_REGISTRATION_ADMIN'
+                                      ? 'ምዝገባ'
+                                      : resp === 'COURSE_TEACHER_ADMIN'
+                                      ? 'ኮርስ/መምህር'
+                                      : resp === 'RESULT_MANAGEMENT_ADMIN'
+                                      ? 'ውጤት'
+                                      : resp}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3 text-center">
-                          {u.isActive ? (
+                          {u.isDeleted ? (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px]">
+                              የተሰረዘ
+                            </span>
+                          ) : u.isActive ? (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                               ንቁ
                             </span>
@@ -497,12 +614,54 @@ export const SuperAdminDashboard: React.FC = () => {
                           )}
                         </td>
                         <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {u.role !== 'SUPER_ADMIN' && (
+                          <div className="flex items-center justify-end flex-wrap gap-1">
+                            {/* Admin specific actions: General Admin & Responsibilities */}
+                            {u.role === 'ADMIN' && !u.isDeleted && (
+                              <>
+                                {u.isGeneralAdmin ? (
+                                  <button
+                                    onClick={() => handleRevokeGeneralAdmin(u.username)}
+                                    disabled={actionLoading}
+                                    className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[10px] font-bold"
+                                    title="የዋና አስተዳዳሪነት ሹመት ሽር"
+                                  >
+                                    ሹመት ሽር
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleAppointGeneralAdmin(u.id, u.username)}
+                                    disabled={actionLoading || !u.isActive}
+                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
+                                      u.isActive
+                                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                    title="ዋና አስተዳዳሪ አድርግ"
+                                  >
+                                    ⭐ ሹም
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => {
+                                    setEditingResponsibilitiesUser(u);
+                                    setSelectedResponsibilities(u.adminResponsibilities || []);
+                                  }}
+                                  disabled={actionLoading || !u.isActive}
+                                  className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-lg text-[10px] font-bold"
+                                  title="ኃላፊነቶችን መድብ"
+                                >
+                                  ኃላፊነት
+                                </button>
+                              </>
+                            )}
+
+                            {/* Toggle Status (Active / Inactive) */}
+                            {u.role !== 'SUPER_ADMIN' && !u.isDeleted && (
                               <button
                                 onClick={() => handleToggleStatus(u.id, u.isActive, u.username)}
                                 disabled={actionLoading}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
                                   u.isActive
                                     ? 'bg-red-50 text-red-700 hover:bg-red-100'
                                     : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -512,16 +671,42 @@ export const SuperAdminDashboard: React.FC = () => {
                               </button>
                             )}
 
-                            <button
-                              onClick={() => {
-                                setResettingUser(u);
-                                setNewPassword('');
-                              }}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                              title="የይለፍ ቃል ቀይር"
-                            >
-                              <KeyRound className="w-3.5 h-3.5" /> ቃል ቀይር
-                            </button>
+                            {/* Soft Delete or Restore */}
+                            {u.role !== 'SUPER_ADMIN' && (
+                              u.isDeleted ? (
+                                <button
+                                  onClick={() => handleRestoreUser(u.id, u.username)}
+                                  disabled={actionLoading}
+                                  className="px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg text-[10px] font-bold"
+                                  title="አካውንቱን ወደ ሲስተሙ መልስ"
+                                >
+                                  መልስ
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleSoftDeleteUser(u.id, u.username)}
+                                  disabled={actionLoading}
+                                  className="px-2 py-1 bg-slate-100 text-red-600 hover:bg-red-50 rounded-lg text-[10px] font-bold"
+                                  title="አካውንቱን ሰርዝ (Soft delete)"
+                                >
+                                  ሰርዝ
+                                </button>
+                              )
+                            )}
+
+                            {/* Reset Password */}
+                            {!u.isDeleted && (
+                              <button
+                                onClick={() => {
+                                  setResettingUser(u);
+                                  setNewPassword('');
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-0.5"
+                                title="የይለፍ ቃል ቀይር"
+                              >
+                                <KeyRound className="w-3 h-3" /> ቃል
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -855,6 +1040,96 @@ export const SuperAdminDashboard: React.FC = () => {
               </Button>
               <Button type="submit" variant="primary" size="sm" loading={actionLoading}>
                 የይለፍ ቃል ቀይር
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: Assign Admin Responsibilities                       */}
+      {/* ========================================================= */}
+      {editingResponsibilitiesUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
+          <form
+            onSubmit={handleSaveResponsibilities}
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4"
+          >
+            <div className="flex items-center gap-2 text-purple-700">
+              <ShieldCheck className="w-5 h-5" />
+              <h3 className="text-base font-bold text-slate-900">የአስተዳዳሪ ኃላፊነቶች ምደባ</h3>
+            </div>
+            <p className="text-xs text-slate-600">
+              ለአስተዳዳሪ <strong>{editingResponsibilitiesUser.firstName} {editingResponsibilitiesUser.lastName}</strong> ({editingResponsibilitiesUser.username}) የሚሰጡ ኃላፊነቶችን ይምረጡ፦
+            </p>
+
+            <div className="space-y-3 pt-2">
+              {[
+                {
+                  id: 'ANNOUNCEMENT_ADMIN',
+                  label: 'የማስታወቂያ አስተዳዳሪ (Announcement Admin)',
+                  desc: 'ማስታወቂያዎችን መፍጠር፣ ማስተካከል፣ ማሰራጨት እና ማህደር ማስገባት።',
+                },
+                {
+                  id: 'USER_REGISTRATION_ADMIN',
+                  label: 'የተጠቃሚ እና የተማሪ ምዝገባ (User Registration Admin)',
+                  desc: 'ተማሪዎችን መመዝገብ፣ በጅምላ በኤክሴል ማስገባት እና ወደ ኮርሶች መመዝገብ።',
+                },
+                {
+                  id: 'COURSE_TEACHER_ADMIN',
+                  label: 'የኮርስና መምህራን አስተዳዳሪ (Course & Teacher Admin)',
+                  desc: 'የትምህርት ዘመናት፣ ምድቦች፣ ኮርሶች እና የመምህራን ኮርስ ምደባዎችን ማስተዳደር።',
+                },
+                {
+                  id: 'RESULT_MANAGEMENT_ADMIN',
+                  label: 'የውጤት ሰነዶች ተቆጣጣሪ (Result Management Admin)',
+                  desc: 'የቀረቡ የውጤት ሰነዶችን መገምገም እና በማስተካከያ ምክንያት ውድቅ ማድረግ።',
+                },
+              ].map((item) => {
+                const isChecked = selectedResponsibilities.includes(item.id);
+                return (
+                  <label
+                    key={item.id}
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      isChecked
+                        ? 'bg-purple-50 border-purple-300 text-purple-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedResponsibilities([...selectedResponsibilities, item.id]);
+                        } else {
+                          setSelectedResponsibilities(
+                            selectedResponsibilities.filter((r) => r !== item.id)
+                          );
+                        }
+                      }}
+                      className="mt-1 w-4 h-4 text-purple-600 rounded focus:ring-purple-500 border-slate-300"
+                    />
+                    <div>
+                      <div className="text-xs font-bold">{item.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{item.desc}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setEditingResponsibilitiesUser(null)}
+              >
+                ይቅር
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={actionLoading}>
+                ኃላፊነቶችን መዝግብ
               </Button>
             </div>
           </form>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import AcademicYearsPage from '../academic/AcademicYearsPage';
 import BatchesPage from '../academic/BatchesPage';
 import StudentsPage from '../academic/StudentsPage';
@@ -99,6 +100,20 @@ export const AdminDashboard: React.FC = () => {
     fetchOverviewStats();
   }, []);
 
+  const { user } = useAuth();
+  const isGeneralAdmin = user?.isGeneralAdmin || user?.role === 'SUPER_ADMIN';
+  const responsibilities = user?.adminResponsibilities || [];
+
+  const canAccess = (key: string) => {
+    if (isGeneralAdmin) return true;
+    if (key === 'overview' || key === 'reports') return true;
+    if (key === 'announcements') return responsibilities.includes('ANNOUNCEMENT_ADMIN');
+    if (key === 'approvals' || key === 'schemes') return responsibilities.includes('RESULT_MANAGEMENT_ADMIN');
+    if (key === 'students' || key === 'enrollment') return responsibilities.includes('USER_REGISTRATION_ADMIN');
+    if (key === 'years' || key === 'batches' || key === 'courses' || key === 'teachers') return responsibilities.includes('COURSE_TEACHER_ADMIN');
+    return false;
+  };
+
   const navItems = [
     { key: 'overview', label: 'ማጠቃለያ ዳሽቦርድ', icon: LayoutDashboard },
     { 
@@ -116,7 +131,7 @@ export const AdminDashboard: React.FC = () => {
     { key: 'teachers', label: 'መምህራን', icon: Award, count: stats.teachersCount },
     { key: 'courses', label: 'ኮርሶችና ምደባዎች', icon: BookOpen, count: stats.coursesCount },
     { key: 'enrollment', label: 'የተማሪዎች ምዝገባ', icon: UserCheck },
-  ];
+  ].filter((item) => canAccess(item.key));
 
   return (
     <div className="space-y-6 font-ethiopic">

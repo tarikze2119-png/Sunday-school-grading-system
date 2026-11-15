@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import gradeController from '../controllers/grade.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
+import { authorizeRole, requireResponsibility, requireGeneralAdmin } from '../middlewares/authorize.js';
 import {
   verifyTeacherCourseAssignment,
   verifyStudentRecordOwnership,
 } from '../middlewares/ownershipGuards.js';
-import { UserRole } from '@prisma/client';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -52,23 +52,27 @@ router.get(
   (req, res) => gradeController.getTeacherAssignedCourses(req, res)
 );
 
+// Offering Grade Sheet: Assigned Teacher and reviewing Admins (Super Admin, Admin)
+// Management is NOT permitted to view unpublished individual grade-entry sheets
 router.get(
   '/offerings/:offeringId/sheet',
-  authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MANAGEMENT]),
+  authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
   verifyTeacherCourseAssignment,
   (req, res) => gradeController.getOfferingGradesSheet(req, res)
 );
 
+// Save Grade Draft: Exclusively Assigned Teacher
 router.put(
   '/offerings/:offeringId/draft',
-  authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  authorizeRole([UserRole.TEACHER]),
   verifyTeacherCourseAssignment,
   (req, res) => gradeController.saveDraftGrades(req, res)
 );
 
+// Submit Grade Draft for Review: Exclusively Assigned Teacher
 router.post(
   '/offerings/:offeringId/submit',
-  authorizeRole([UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  authorizeRole([UserRole.TEACHER]),
   verifyTeacherCourseAssignment,
   (req, res) => gradeController.submitGradesForApproval(req, res)
 );
@@ -97,27 +101,32 @@ router.get(
   (req, res) => gradeController.getSubmissionsForReview(req, res)
 );
 
+// Final Approval (General Admin exclusively)
 router.post(
   '/submissions/:submissionId/approve',
-  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  requireGeneralAdmin(),
   (req, res) => gradeController.approveSubmission(req, res)
 );
 
+// Review & Rejection (Result Management Admin or Super Admin)
 router.post(
   '/submissions/:submissionId/reject',
   authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN),
   (req, res) => gradeController.rejectSubmission(req, res)
 );
 
+// Publication (General Admin exclusively)
 router.post(
   '/submissions/:submissionId/publish',
-  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  requireGeneralAdmin(),
   (req, res) => gradeController.publishSubmission(req, res)
 );
 
+// Reopen Submission (General Admin exclusively)
 router.post(
   '/submissions/:submissionId/reopen',
-  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  requireGeneralAdmin(),
   (req, res) => gradeController.reopenSubmission(req, res)
 );
 

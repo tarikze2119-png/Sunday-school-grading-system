@@ -1,5 +1,11 @@
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGEMENT' | 'TEACHER' | 'STUDENT';
 
+export type AdminResponsibility =
+  | 'ANNOUNCEMENT_ADMIN'
+  | 'USER_REGISTRATION_ADMIN'
+  | 'COURSE_TEACHER_ADMIN'
+  | 'RESULT_MANAGEMENT_ADMIN';
+
 export interface StudentProfile {
   id: string;
   userId?: string;
@@ -40,6 +46,10 @@ export interface User {
   grandfatherName?: string;
   phone?: string;
   isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  adminResponsibilities?: AdminResponsibility[];
+  isGeneralAdmin?: boolean;
   createdAt?: string;
   studentProfile?: StudentProfile;
   teacherProfile?: TeacherProfile;

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "test:phase1": "tsx src/tests/phase1AdminRoleSeparation.test.ts",
     "test:grading": "node --experimental-strip-types src/tests/gradeWorkflow.test.ts",
     "test:scheme": "node --experimental-strip-types src/tests/phase4aGradingScheme.test.ts",
     "test:phase4b": "node --experimental-strip-types src/tests/phase4bIntegration.test.ts",

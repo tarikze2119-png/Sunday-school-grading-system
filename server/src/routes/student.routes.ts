@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import studentController from '../controllers/student.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -15,24 +15,27 @@ router.get(
   (req, res, next) => studentController.list(req, res, next)
 );
 
-// Register individual student (Super Admin, Admin)
+// Register individual student (Super Admin, Admin with USER_REGISTRATION_ADMIN)
 router.post(
   '/',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => studentController.register(req, res, next)
 );
 
-// Promote student to new year/batch without overwriting (Super Admin, Admin)
+// Promote student to new year/batch without overwriting (Super Admin, Admin with USER_REGISTRATION_ADMIN)
 router.post(
   '/:studentId/promote',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => studentController.promote(req, res, next)
 );
 
-// Excel bulk import (Super Admin, Admin)
+// Excel bulk import (Super Admin, Admin with USER_REGISTRATION_ADMIN)
 router.post(
   '/import-excel',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => studentController.importExcel(req, res, next)
 );
 

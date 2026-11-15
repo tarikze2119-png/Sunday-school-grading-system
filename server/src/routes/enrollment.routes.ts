@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import enrollmentController from '../controllers/enrollment.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -12,6 +12,7 @@ router.use(authenticateJwt);
 router.post(
   '/individual',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => enrollmentController.enrollIndividual(req, res, next)
 );
 
@@ -19,6 +20,7 @@ router.post(
 router.post(
   '/offerings/:courseOfferingId/bulk-enroll',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => enrollmentController.bulkEnroll(req, res, next)
 );
 
@@ -32,6 +34,7 @@ router.get(
 router.post(
   '/transfer',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => enrollmentController.transfer(req, res, next)
 );
 
@@ -39,6 +42,7 @@ router.post(
 router.delete(
   '/:enrollmentId',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => enrollmentController.unenroll(req, res, next)
 );
 

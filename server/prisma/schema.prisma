@@ -19,6 +19,13 @@ enum UserRole {
   STUDENT
 }
 
+enum AdminResponsibility {
+  ANNOUNCEMENT_ADMIN
+  USER_REGISTRATION_ADMIN
+  COURSE_TEACHER_ADMIN
+  RESULT_MANAGEMENT_ADMIN
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -95,6 +102,20 @@ model User {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
+  // Phase 1: Admin Responsibilities & Soft Deletion
+  adminResponsibilities   AdminResponsibility[] @default([])
+  isDeleted               Boolean               @default(false)
+  deletedAt               DateTime?
+  deletedById             String?
+  deploymentRestrictionId String?
+
+  // Deletion tracking self-relations
+  deletedBy               User?                 @relation("UserDeletions", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletedUsers            User[]                @relation("UserDeletions")
+
+  // General Admin appointment singleton link
+  generalAdminAppointment SystemSetting?        @relation("GeneralAdminAppointment")
+
   // Profiles (1:1 per role)
   studentProfile     Student?
   teacherProfile     Teacher?
@@ -115,7 +136,23 @@ model User {
   @@index([role])
   @@index([username])
   @@index([phone])
+  @@index([isDeleted])
+  @@index([deploymentRestrictionId])
   @@map("users")
+}
+
+// ==========================================
+// SYSTEM SETTINGS (Singleton Configuration)
+// ==========================================
+
+model SystemSetting {
+  id                 String   @id @default("SYSTEM_DEFAULT")
+  generalAdminUserId String?  @unique
+  generalAdminUser   User?    @relation("GeneralAdminAppointment", fields: [generalAdminUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("system_settings")
 }
 
 // ==========================================

@@ -97,8 +97,8 @@ export const verifyStudentRecordOwnership = async (
 
 /**
  * Ensures teachers can only view or mutate grades of course offerings assigned to them.
- * Super Admins and Admins can view/manage all course offerings.
- * Management has read-only oversight.
+ * Admins and Super Admins can view course offerings and reports for review, but CANNOT mutate teacher grades.
+ * Management has read-only oversight to aggregated reports, but is strictly barred from individual grade sheets.
  */
 export const verifyTeacherCourseAssignment = async (
   req: Request,
@@ -109,40 +109,87 @@ export const verifyTeacherCourseAssignment = async (
     return res.status(401).json({ success: false, message: 'እባክዎ መጀመሪያ ይግቡ።' });
   }
 
-  // Admins and Super Admins have override privileges
-  if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
-    return next();
-  }
-
-  // Management has read-only oversight
-  if (req.user.role === UserRole.MANAGEMENT) {
-    if (req.method === 'GET') {
-      return next();
-    }
-    return res.status(403).json({
-      success: false,
-      message: 'የአመራር ሚና ውጤት የማሻሻል ወይም የማስገባት ፈቃድ የለውም።',
-    });
-  }
-
   const courseOfferingId = req.params.offeringId || req.body.courseOfferingId;
   if (!courseOfferingId) {
     return res.status(400).json({ success: false, message: 'የኮርስ ምደባ መለያ (Offering ID) አልተገለጸም።' });
   }
 
+  // 1. Management: Strictly read-only for aggregated reports; barred from individual grade sheets and mutations
+  if (req.user.role === UserRole.MANAGEMENT) {
+    if (req.method !== 'GET') {
+      return res.status(403).json({
+        success: false,
+        message: 'የሰንበት ት/ቤት አመራር ውጤት የማሻሻል ወይም የማስገባት ፈቃድ የለውም።',
+        code: 'FORBIDDEN',
+      });
+    }
+
+    const isSheetEndpoint =
+      req.path.endsWith('/sheet') ||
+      req.originalUrl.includes('/sheet') ||
+      req.baseUrl.includes('sheet');
+
+    if (isSheetEndpoint) {
+      return res.status(403).json({
+        success: false,
+        message: 'የሰንበት ት/ቤት አመራር የተማሪዎችን ዝርዝር የውጤት መሙያ ሰነድ የመመልከት ፈቃድ የለውም። እባክዎ አጠቃላይ የአካዳሚክ ሪፖርቶችን ይጠቀሙ።',
+        code: 'FORBIDDEN_MANAGEMENT_SHEET_ACCESS',
+      });
+    }
+
+    return next();
+  }
+
+  // 2. Admins and Super Admins: Read-only access for review & reports; strictly forbidden from grade entry/submission
+  if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.ADMIN) {
+    if (req.method !== 'GET') {
+      return res.status(403).json({
+        success: false,
+        message: 'አስተዳዳሪዎች በቀጥታ የመምህራንን ውጤት መመዝገብ ወይም ማቅረብ አይችሉም። ይህ የመምህሩ ብቻ ኃላፊነት ነው።',
+        code: 'FORBIDDEN_ADMIN_GRADE_MUTATION',
+      });
+    }
+    return next();
+  }
+
+  // 3. Teachers: Must be actively assigned to this offering with an active, non-deleted account
   if (req.user.role === UserRole.TEACHER) {
     const assignment = await prisma.teacherAssignment.findFirst({
       where: {
         courseOfferingId,
-        teacher: { userId: req.user.id },
+        teacher: {
+          userId: req.user.id,
+          user: {
+            isActive: true,
+            isDeleted: false,
+          },
+        },
+      },
+      include: {
+        courseOffering: {
+          select: {
+            status: true,
+          },
+        },
       },
     });
 
     if (!assignment) {
       return res.status(403).json({
         success: false,
-        message: 'ይህ ኮርስ ለእርስዎ አልተመደበም። የውጤት መረጃ የመመልከት ወይም የመመዝገብ ፈቃድ የለዎትም።',
+        message: 'ይህ ኮርስ ለእርስዎ አልተመደበም ወይም የተሰናከለ አካውንት ነው። የውጤት መረጃ የመመልከት ወይም የመመዝገብ ፈቃድ የለዎትም።',
+        code: 'NOT_ASSIGNED_TEACHER',
       });
+    }
+
+    if (assignment.courseOffering.status === 'COMPLETED' || assignment.courseOffering.status === 'ARCHIVED') {
+      if (req.method !== 'GET') {
+        return res.status(403).json({
+          success: false,
+          message: 'ይህ የኮርስ ምደባ የተጠናቀቀ ወይም የተሰረዘ ስለሆነ ውጤት ማስገባት አይቻልም።',
+          code: 'OFFERING_INACTIVE',
+        });
+      }
     }
 
     return next();
@@ -151,5 +198,6 @@ export const verifyTeacherCourseAssignment = async (
   return res.status(403).json({
     success: false,
     message: 'ይህንን ተግባር ለማከናወን ፈቃድ የለዎትም።',
+    code: 'FORBIDDEN',
   });
 };

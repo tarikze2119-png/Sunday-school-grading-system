@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { ENV } from './config/env.config.js';
+import { corsOptions } from './config/cors.config.js';
 import apiRouter from './routes/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -12,21 +13,8 @@ const createApp = (): Express => {
   // Security headers
   app.use(helmet());
 
-  // CORS configuration
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin || origin === ENV.CLIENT_URL || origin.endsWith('.vercel.app') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-          callback(null, true);
-        } else {
-          callback(null, true);
-        }
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    })
-  );
+  // CORS configuration — exact-origin allowlist enforcement
+  app.use(cors(corsOptions));
 
   // Body parsers
   app.use(express.json());

@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 declare global {
   namespace Express {
@@ -13,6 +13,8 @@ declare global {
         studentId?: string;
         teacherId?: string;
         tokenVersion?: number;
+        adminResponsibilities?: AdminResponsibility[];
+        isGeneralAdmin?: boolean;
       };
     }
   }

@@ -13,6 +13,7 @@ import notificationRoutes from './notification.routes.js';
 import gradingSchemeRoutes from './gradingScheme.routes.js';
 import announcementRoutes from './announcement.routes.js';
 import transcriptRoutes from './transcript.routes.js';
+import systemAdminRoutes from './systemAdmin.routes.js';
 
 const router = Router();
 
@@ -45,5 +46,8 @@ router.use('/announcements', announcementRoutes);
 
 // Institutional Official Transcripts (Admin, Super Admin, Management)
 router.use('/transcripts', transcriptRoutes);
+
+// System Administration & General Admin Authority
+router.use('/system-admin', systemAdminRoutes);
 
 export default router;

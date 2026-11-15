@@ -61,14 +61,16 @@ export const authenticateJwt = async (
         firstName: true,
         lastName: true,
         isActive: true,
+        isDeleted: true,
         tokenVersion: true,
+        adminResponsibilities: true,
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.isDeleted) {
       return res.status(401).json({
         success: false,
-        message: 'ተጠቃሚው አልተገኘም ወይም አካውንቱ ታግዷል።',
+        message: 'ተጠቃሚው አልተገኘም ወይም አካውንቱ ታግዷል/ተሰርዟል።',
       });
     }
 
@@ -90,6 +92,7 @@ export const authenticateJwt = async (
       studentId: decoded.studentId,
       teacherId: decoded.teacherId,
       tokenVersion: user.tokenVersion,
+      adminResponsibilities: user.adminResponsibilities,
     };
 
     next();

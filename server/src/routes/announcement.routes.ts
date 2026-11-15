@@ -2,8 +2,8 @@ import { Router } from 'express';
 import announcementController from '../controllers/announcement.controller.js';
 import announcementService from '../services/announcement.service.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -68,42 +68,49 @@ router.patch('/:id/read', (req, res) => announcementController.markAsRead(req, r
 router.post(
   '/',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.createAnnouncement(req, res)
 );
 
 router.get(
   '/admin',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.getAdminAnnouncements(req, res)
 );
 
 router.get(
   '/:id/stats',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.getDetailedRecipientStats(req, res)
 );
 
 router.get(
   '/:id',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.getAnnouncementById(req, res)
 );
 
 router.put(
   '/:id',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.updateAnnouncement(req, res)
 );
 
 router.patch(
   '/:id/publish',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.publishAnnouncement(req, res)
 );
 
 router.patch(
   '/:id/archive',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.ANNOUNCEMENT_ADMIN),
   (req, res) => announcementController.archiveAnnouncement(req, res)
 );
 

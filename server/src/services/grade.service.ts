@@ -6,7 +6,9 @@ import {
   NotificationType,
   OfferingStatus 
 } from '@prisma/client';
-import { logAuditEvent } from '../utils/auditLogger.js';
+import { logAuditEvent, SecurityIncidentException, logSecurityIncident } from '../utils/auditLogger.js';
+import { validateGeneralAdminConfiguration } from './systemSetting.service.js';
+import { validateAmharicFeedback, verifyInstitutionalCodesInDb } from '../utils/validation.js';
 
 export interface AssessmentInput {
   name: string;
@@ -586,13 +588,29 @@ export class GradeService {
     }
 
     // Role Security Guards:
-    // Teachers may only view their assigned course offerings.
+    // 1. Management is strictly forbidden from viewing individual raw grade-entry sheets
+    if (requestingUserRole === 'MANAGEMENT') {
+      const error: any = new Error(
+        'የሰንበት ት/ቤት አመራር የተማሪዎችን ዝርዝር የውጤት መሙያ ሰነድ የመመልከት ፈቃድ የለውም። እባክዎ አጠቃላይ የአካዳሚክ ሪፖርቶችን ይጠቀሙ።'
+      );
+      error.statusCode = 403;
+      error.code = 'FORBIDDEN_MANAGEMENT_SHEET_ACCESS';
+      throw error;
+    }
+
+    // 2. Teachers may only view their actively assigned course offerings
     if (requestingUserRole === 'TEACHER') {
       const isAssigned = offering.teacherAssignments.some(
-        (ta) => ta.teacher.userId === requestingUserId
+        (ta) =>
+          ta.teacher.userId === requestingUserId &&
+          ta.teacher.user?.isActive &&
+          !ta.teacher.user?.isDeleted
       );
       if (!isAssigned) {
-        throw new Error('ይህንን የኮርስ ውጤት ሰነድ የመመልከት ፈቃድ የለዎትም።');
+        const error: any = new Error('ይህንን የኮርስ ውጤት ሰነድ የመመልከት ፈቃድ የለዎትም።');
+        error.statusCode = 403;
+        error.code = 'NOT_ASSIGNED_TEACHER';
+        throw error;
       }
     }
 
@@ -739,7 +757,7 @@ export class GradeService {
     const offering = await prisma.courseOffering.findUnique({
       where: { id: courseOfferingId },
       include: {
-        teacherAssignments: { include: { teacher: true } },
+        teacherAssignments: { include: { teacher: { include: { user: true } } } },
         assessments: true,
         gradeSubmissions: { orderBy: { version: 'desc' }, take: 1 },
       },
@@ -749,12 +767,20 @@ export class GradeService {
       throw new Error('የተመረጠው የኮርስ ምደባ አልተገኘም።');
     }
 
-    // 1. Verify Teacher is assigned
+    // 1. Verify Teacher is actively assigned
     const isAssigned = offering.teacherAssignments.some(
-      (ta) => ta.teacher.userId === teacherUserId
+      (ta) =>
+        ta.teacher.userId === teacherUserId &&
+        ta.teacher.user?.isActive &&
+        !ta.teacher.user?.isDeleted
     );
     if (!isAssigned) {
-      throw new Error('ይህንን ኮርስ ለማስተማር ስላልተመደቡ ውጤት ማስገባት አይችሉም።');
+      const error: any = new Error(
+        'ይህንን ኮርስ ለማስተማር ስላልተመደቡ ወይም የተሰናከለ አካውንት ስለሆነ ውጤት ማስገባት አይችሉም።'
+      );
+      error.statusCode = 403;
+      error.code = 'NOT_ASSIGNED_TEACHER';
+      throw error;
     }
 
     // 2. Server-side deadline validation
@@ -873,7 +899,7 @@ export class GradeService {
     const offering = await prisma.courseOffering.findUnique({
       where: { id: courseOfferingId },
       include: {
-        teacherAssignments: { include: { teacher: true } },
+        teacherAssignments: { include: { teacher: { include: { user: true } } } },
         assessments: true,
         enrollments: {
           include: {
@@ -889,12 +915,20 @@ export class GradeService {
       throw new Error('የተመረጠው የኮርስ ምደባ አልተገኘም።');
     }
 
-    // 1. Verify Teacher assignment
+    // 1. Verify Teacher is actively assigned
     const isAssigned = offering.teacherAssignments.some(
-      (ta) => ta.teacher.userId === teacherUserId
+      (ta) =>
+        ta.teacher.userId === teacherUserId &&
+        ta.teacher.user?.isActive &&
+        !ta.teacher.user?.isDeleted
     );
     if (!isAssigned) {
-      throw new Error('ይህንን ኮርስ ለማስተማር ስላልተመደቡ ውጤት ማቅረብ አይችሉም።');
+      const error: any = new Error(
+        'ይህንን ኮርስ ለማስተማር ስላልተመደቡ ወይም የተሰናከለ አካውንት ስለሆነ ውጤት ማቅረብ አይችሉም።'
+      );
+      error.statusCode = 403;
+      error.code = 'NOT_ASSIGNED_TEACHER';
+      throw error;
     }
 
     // 2. Deadline check
@@ -1229,82 +1263,100 @@ export class GradeService {
           weightPercentage: Number(a.weightPercentage),
         }));
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Calculate and update each student's final score and letter grade using course-specific scheme
-      for (const enrollment of offering.enrollments) {
-        let studentWeightedTotal = 0;
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Enforce General Admin authority with row lock on SYSTEM_DEFAULT singleton
+        await validateGeneralAdminConfiguration(tx, {
+          requiredOperation: 'APPROVE_GRADES',
+          operatorId: adminUserId,
+          auditDetails: { submissionId, courseOfferingId: offering.id },
+        });
 
-        for (const assessment of effectiveAssessments) {
-          const grade = enrollment.grades.find((g) => g.assessmentId === assessment.id);
-          if (grade && !grade.isExempt && Number(assessment.maxScore) > 0) {
-            const part =
-              (Number(grade.scoreObtained) / Number(assessment.maxScore)) *
-              Number(assessment.weightPercentage);
-            studentWeightedTotal += part;
+        // 1. Calculate and update each student's final score and letter grade using course-specific scheme
+        for (const enrollment of offering.enrollments) {
+          let studentWeightedTotal = 0;
+
+          for (const assessment of effectiveAssessments) {
+            const grade = enrollment.grades.find((g) => g.assessmentId === assessment.id);
+            if (grade && !grade.isExempt && Number(assessment.maxScore) > 0) {
+              const part =
+                (Number(grade.scoreObtained) / Number(assessment.maxScore)) *
+                Number(assessment.weightPercentage);
+              studentWeightedTotal += part;
+            }
           }
+
+          studentWeightedTotal = Math.round(studentWeightedTotal * 100) / 100;
+
+          // Match grading scale using robust threshold matcher
+          const matched = matchScoreToScale(studentWeightedTotal, scales);
+
+          await tx.studentEnrollment.update({
+            where: { id: enrollment.id },
+            data: {
+              finalNumericScore: studentWeightedTotal,
+              finalLetterGrade: matched.letterGrade,
+              isPassed: matched.isPassing,
+            },
+          });
         }
 
-        studentWeightedTotal = Math.round(studentWeightedTotal * 100) / 100;
-
-        // Match grading scale using robust threshold matcher
-        const matched = matchScoreToScale(studentWeightedTotal, scales);
-
-        await tx.studentEnrollment.update({
-          where: { id: enrollment.id },
+        // 2. Update GradeSubmission status to APPROVED
+        await tx.gradeSubmission.update({
+          where: { id: submissionId },
           data: {
-            finalNumericScore: studentWeightedTotal,
-            finalLetterGrade: matched.letterGrade,
-            isPassed: matched.isPassing,
+            status: GradeSubmissionStatus.APPROVED,
+            rejectionReason: null,
           },
         });
+
+        // 3. Create GradeApproval record
+        await tx.gradeApproval.create({
+          data: {
+            gradeSubmissionId: submissionId,
+            approvedById: adminUserId,
+            decision: ApprovalDecision.APPROVED,
+            comments: comments?.trim() || 'ውጤቱ በዋና አስተዳዳሪው ተመርምሮ ጸድቋል',
+          },
+        });
+
+        // 4. Update CourseOffering status
+        await tx.courseOffering.update({
+          where: { id: offering.id },
+          data: { status: OfferingStatus.COMPLETED },
+        });
+
+        // 5. Notify Teacher
+        await tx.notification.create({
+          data: {
+            userId: submission.submittedById,
+            type: NotificationType.GRADE_APPROVED,
+            title: 'የውጤት ሰነድ ጸድቋል',
+            message: `ያቀረቡት የኮርስ ውጤት ሰነድ በዋና አስተዳዳሪው ጸድቋል።`,
+            linkUrl: `/dashboard?tab=grades&offeringId=${offering.id}`,
+          },
+        });
+
+        // 6. Commit atomic audit log inside transaction
+        await logAuditEvent(
+          {
+            userId: adminUserId,
+            action: 'APPROVE_GRADE_SUBMISSION',
+            entityName: 'GradeSubmission',
+            entityId: submissionId,
+            details: { courseOfferingId: offering.id, comments },
+          },
+          tx
+        );
+      });
+    } catch (error: any) {
+      if (error instanceof SecurityIncidentException) {
+        await logSecurityIncident(error);
       }
+      throw error;
+    }
 
-      // 2. Update GradeSubmission status to APPROVED
-      await tx.gradeSubmission.update({
-        where: { id: submissionId },
-        data: {
-          status: GradeSubmissionStatus.APPROVED,
-          rejectionReason: null,
-        },
-      });
-
-      // 3. Create GradeApproval record
-      await tx.gradeApproval.create({
-        data: {
-          gradeSubmissionId: submissionId,
-          approvedById: adminUserId,
-          decision: ApprovalDecision.APPROVED,
-          comments: comments?.trim() || 'ውጤቱ በአስተዳዳሪው ተመርምሮ ጸድቋል',
-        },
-      });
-
-      // 4. Update CourseOffering status
-      await tx.courseOffering.update({
-        where: { id: offering.id },
-        data: { status: OfferingStatus.COMPLETED },
-      });
-
-      // 5. Notify Teacher
-      await tx.notification.create({
-        data: {
-          userId: submission.submittedById,
-          type: NotificationType.GRADE_APPROVED,
-          title: 'የውጤት ሰነድ ጸድቋል',
-          message: `ያቀረቡት የኮርስ ውጤት ሰነድ በአስተዳዳሪው ጸድቋል።`,
-          linkUrl: `/dashboard?tab=grades&offeringId=${offering.id}`,
-        },
-      });
-    });
-
-    await logAuditEvent({
-      userId: adminUserId,
-      action: 'APPROVE_GRADE_SUBMISSION',
-      entityName: 'GradeSubmission',
-      entityId: submissionId,
-      details: { courseOfferingId: offering.id, comments },
-    });
-
-    return { message: 'የውጤት ሰነዱ በተሳካ ሁኔታ ጸድቋል።' };
+    return { message: 'የውጤት ሰነዱ በዋና አስተዳዳሪው በተሳካ ሁኔታ ጸድቋል።' };
   }
 
   /**
@@ -1317,8 +1369,13 @@ export class GradeService {
     rejectionReason: string,
     comments?: string
   ) {
-    if (!rejectionReason || rejectionReason.trim().length === 0) {
-      throw new Error('ውጤት ውድቅ ሲደረግ የግዴታ ምክንያቱ በአማርኛ መገለጽ አለበት።');
+    // 1. Layer 1 Amharic text validation
+    const validation = validateAmharicFeedback(rejectionReason);
+    if (!validation.isValid) {
+      const error: any = new Error(validation.error || 'ውጤት ውድቅ ሲደረግ የግዴታ ምክንያቱ በአማርኛ መገለጽ አለበት።');
+      error.statusCode = 400;
+      error.code = 'INVALID_REJECTION_REASON';
+      throw error;
     }
 
     const submission = await prisma.gradeSubmission.findUnique({
@@ -1327,54 +1384,71 @@ export class GradeService {
     });
 
     if (!submission) {
-      throw new Error('የተጠየቀው የውጤት ሰነድ አልተገኘም።');
+      const error: any = new Error('የተጠየቀው የውጤት ሰነድ አልተገኘም።');
+      error.statusCode = 404;
+      error.code = 'SUBMISSION_NOT_FOUND';
+      throw error;
     }
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Update submission status to REJECTED and save reason
-      await tx.gradeSubmission.update({
-        where: { id: submissionId },
-        data: {
-          status: GradeSubmissionStatus.REJECTED,
-          rejectionReason: rejectionReason.trim(),
-        },
-      });
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 2. Layer 2 Database Catalog Verification for extracted codes
+        await verifyInstitutionalCodesInDb(tx, validation.extractedCodes);
 
-      // 2. Create rejection approval record
-      await tx.gradeApproval.create({
-        data: {
-          gradeSubmissionId: submissionId,
-          approvedById: adminUserId,
-          decision: ApprovalDecision.REJECTED,
-          comments: comments?.trim() || rejectionReason.trim(),
-        },
-      });
+        // 3. Update submission status to REJECTED and save normalized reason
+        await tx.gradeSubmission.update({
+          where: { id: submissionId },
+          data: {
+            status: GradeSubmissionStatus.REJECTED,
+            rejectionReason: validation.normalized,
+          },
+        });
 
-      // 3. Reopen course offering submission so teacher can correct it
-      await tx.courseOffering.update({
-        where: { id: submission.courseOfferingId },
-        data: { isSubmissionOpen: true },
-      });
+        // 4. Create rejection approval record
+        await tx.gradeApproval.create({
+          data: {
+            gradeSubmissionId: submissionId,
+            approvedById: adminUserId,
+            decision: ApprovalDecision.REJECTED,
+            comments: comments?.trim() || validation.normalized,
+          },
+        });
 
-      // 4. Notify Teacher with the mandatory reason
-      await tx.notification.create({
-        data: {
-          userId: submission.submittedById,
-          type: NotificationType.GRADE_REJECTED,
-          title: 'የውጤት ሰነድ ማስተካከያ ተጠይቆበታል',
-          message: `ያቀረቡት የኮርስ ውጤት ውድቅ ተደርጓል። ምክንያት፦ ${rejectionReason.trim()}። እባክዎ አስተካክለው በድጋሚ ያቅርቡ።`,
-          linkUrl: `/dashboard?tab=grades&offeringId=${submission.courseOfferingId}`,
-        },
-      });
-    });
+        // 5. Reopen course offering submission so teacher can correct it
+        await tx.courseOffering.update({
+          where: { id: submission.courseOfferingId },
+          data: { isSubmissionOpen: true },
+        });
 
-    await logAuditEvent({
-      userId: adminUserId,
-      action: 'REJECT_GRADE_SUBMISSION',
-      entityName: 'GradeSubmission',
-      entityId: submissionId,
-      details: { rejectionReason, comments },
-    });
+        // 6. Notify Teacher with the mandatory reason
+        await tx.notification.create({
+          data: {
+            userId: submission.submittedById,
+            type: NotificationType.GRADE_REJECTED,
+            title: 'የውጤት ሰነድ ማስተካከያ ተጠይቆበታል',
+            message: `ያቀረቡት የኮርስ ውጤት ውድቅ ተደርጓል። ምክንያት፦ ${validation.normalized}። እባክዎ አስተካክለው በድጋሚ ያቅርቡ።`,
+            linkUrl: `/dashboard?tab=grades&offeringId=${submission.courseOfferingId}`,
+          },
+        });
+
+        // 7. Atomic audit log inside transaction
+        await logAuditEvent(
+          {
+            userId: adminUserId,
+            action: 'REJECT_GRADE_SUBMISSION',
+            entityName: 'GradeSubmission',
+            entityId: submissionId,
+            details: { rejectionReason: validation.normalized, comments },
+          },
+          tx
+        );
+      });
+    } catch (error: any) {
+      if (error instanceof SecurityIncidentException) {
+        await logSecurityIncident(error);
+      }
+      throw error;
+    }
 
     return { message: 'የውጤት ሰነዱ ውድቅ ተደርጎ ለማስተካከያ ወደ መምህሩ ተመልሷል።' };
   }
@@ -1395,45 +1469,69 @@ export class GradeService {
     });
 
     if (!submission) {
-      throw new Error('የተጠየቀው የውጤት ሰነድ አልተገኘም።');
+      const error: any = new Error('የተጠየቀው የውጤት ሰነድ አልተገኘም።');
+      error.statusCode = 404;
+      error.code = 'SUBMISSION_NOT_FOUND';
+      throw error;
     }
 
     if (submission.status !== GradeSubmissionStatus.APPROVED) {
-      throw new Error('ውጤትን ይፋ ማድረግ የሚቻለው አስቀድሞ በስልጣን ባለው አስተዳዳሪ የጸደቀ ከሆነ ብቻ ነው።');
+      const error: any = new Error('ውጤትን ይፋ ማድረግ የሚቻለው አስቀድሞ በዋና አስተዳዳሪ የጸደቀ ከሆነ ብቻ ነው።');
+      error.statusCode = 400;
+      error.code = 'SUBMISSION_NOT_APPROVED';
+      throw error;
     }
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Set status to PUBLISHED
-      await tx.gradeSubmission.update({
-        where: { id: submissionId },
-        data: {
-          status: GradeSubmissionStatus.PUBLISHED,
-          publishedAt: new Date(),
-          publishedById: adminUserId,
-        },
-      });
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Enforce General Admin authority with row lock on SYSTEM_DEFAULT singleton
+        await validateGeneralAdminConfiguration(tx, {
+          requiredOperation: 'PUBLISH_GRADES',
+          operatorId: adminUserId,
+          auditDetails: { submissionId, courseOfferingId: submission.courseOfferingId },
+        });
 
-      // 2. Notify all enrolled students that their grades are published
-      for (const enrollment of submission.courseOffering.enrollments) {
-        await tx.notification.create({
+        // 1. Set status to PUBLISHED
+        await tx.gradeSubmission.update({
+          where: { id: submissionId },
           data: {
-            userId: enrollment.student.userId,
-            type: NotificationType.RESULTS_PUBLISHED,
-            title: 'አዲስ የኮርስ ውጤት ይፋ ሆኗል',
-            message: 'የወሰዱት የኮርስ ውጤት በይፋ ታትሟል። በዳሽቦርድዎ ላይ መመልከት ይችላሉ።',
-            linkUrl: '/dashboard?tab=results',
+            status: GradeSubmissionStatus.PUBLISHED,
+            publishedAt: new Date(),
+            publishedById: adminUserId,
           },
         });
-      }
-    });
 
-    await logAuditEvent({
-      userId: adminUserId,
-      action: 'PUBLISH_GRADE_SUBMISSION',
-      entityName: 'GradeSubmission',
-      entityId: submissionId,
-      details: { courseOfferingId: submission.courseOfferingId },
-    });
+        // 2. Notify all enrolled students that their grades are published
+        for (const enrollment of submission.courseOffering.enrollments) {
+          await tx.notification.create({
+            data: {
+              userId: enrollment.student.userId,
+              type: NotificationType.RESULTS_PUBLISHED,
+              title: 'አዲስ የኮርስ ውጤት ይፋ ሆኗል',
+              message: 'የወሰዱት የኮርስ ውጤት በይፋ ታትሟል። በዳሽቦርድዎ ላይ መመልከት ይችላሉ።',
+              linkUrl: '/dashboard?tab=results',
+            },
+          });
+        }
+
+        // 3. Commit atomic audit log inside transaction
+        await logAuditEvent(
+          {
+            userId: adminUserId,
+            action: 'PUBLISH_GRADE_SUBMISSION',
+            entityName: 'GradeSubmission',
+            entityId: submissionId,
+            details: { courseOfferingId: submission.courseOfferingId },
+          },
+          tx
+        );
+      });
+    } catch (error: any) {
+      if (error instanceof SecurityIncidentException) {
+        await logSecurityIncident(error);
+      }
+      throw error;
+    }
 
     return { message: 'የተማሪዎች ውጤት በይፋ ለተማሪዎች ታትሟል።' };
   }

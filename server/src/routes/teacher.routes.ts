@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import teacherController from '../controllers/teacher.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -15,10 +15,11 @@ router.get(
   (req, res, next) => teacherController.list(req, res, next)
 );
 
-// Register teacher (Super Admin, Admin)
+// Register teacher (Super Admin, Admin with USER_REGISTRATION_ADMIN)
 router.post(
   '/',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.USER_REGISTRATION_ADMIN),
   (req, res, next) => teacherController.register(req, res, next)
 );
 

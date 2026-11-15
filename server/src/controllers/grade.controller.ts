@@ -3,6 +3,15 @@ import gradeService from '../services/grade.service.js';
 import transcriptService from '../services/transcript.service.js';
 import prisma from '../config/prisma.client.js';
 
+function sendGradeError(res: Response, error: any, defaultStatusCode = 400): void {
+  const statusCode = error.statusCode || defaultStatusCode;
+  res.status(statusCode).json({
+    success: false,
+    message: error.message || 'ስህተት ተከስቷል።',
+    code: error.code || (statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST'),
+  });
+}
+
 export class GradeController {
   // ==========================================
   // A. ASSESSMENTS
@@ -14,7 +23,7 @@ export class GradeController {
       const assessments = await gradeService.getAssessments(offeringId);
       res.status(200).json({ success: true, data: assessments });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -29,7 +38,7 @@ export class GradeController {
         data: assessment,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -44,7 +53,7 @@ export class GradeController {
         data: updated,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -55,7 +64,7 @@ export class GradeController {
       const result = await gradeService.deleteAssessment(assessmentId, adminUserId);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -70,7 +79,7 @@ export class GradeController {
         data: assessments,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -79,7 +88,7 @@ export class GradeController {
       const scales = await gradeService.getGradingScales();
       res.status(200).json({ success: true, data: scales });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -93,7 +102,7 @@ export class GradeController {
       const courses = await gradeService.getTeacherAssignedCourses(teacherUserId);
       res.status(200).json({ success: true, data: courses });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -114,7 +123,7 @@ export class GradeController {
       );
       res.status(200).json({ success: true, data: sheet });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -132,7 +141,7 @@ export class GradeController {
       const result = await gradeService.saveDraftGrades(offeringId, teacherUserId, grades);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -145,7 +154,7 @@ export class GradeController {
       const result = await gradeService.submitGradesForApproval(offeringId, teacherUserId, notes);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -170,7 +179,7 @@ export class GradeController {
         data: updated,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -180,7 +189,7 @@ export class GradeController {
       const deadlines = await gradeService.getDeadlinesOverview(academicYearId);
       res.status(200).json({ success: true, data: deadlines });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -202,7 +211,7 @@ export class GradeController {
 
       res.status(200).json({ success: true, data: submissions });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -215,7 +224,7 @@ export class GradeController {
       const result = await gradeService.approveSubmission(submissionId, adminUserId, comments);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -233,7 +242,7 @@ export class GradeController {
       );
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -245,7 +254,7 @@ export class GradeController {
       const result = await gradeService.publishSubmission(submissionId, adminUserId);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -258,7 +267,7 @@ export class GradeController {
       const result = await gradeService.reopenSubmission(submissionId, adminUserId, reason);
       res.status(200).json({ success: true, ...result });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -274,7 +283,7 @@ export class GradeController {
       const results = await gradeService.getStudentPublishedResults(studentUserId, academicYearId);
       res.status(200).json({ success: true, data: results });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 
@@ -301,7 +310,7 @@ export class GradeController {
       const report = await gradeService.getBatchReport(batchId);
       res.status(200).json({ success: true, data: report });
     } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      sendGradeError(res, error);
     }
   }
 

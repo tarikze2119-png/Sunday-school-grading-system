@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { 
   SubmissionReviewItem, 
   DeadlineOverviewItem, 
@@ -27,6 +28,9 @@ import {
 } from 'lucide-react';
 
 export const AdminGradeApprovalPage: React.FC = () => {
+  const { user } = useAuth();
+  const isGeneralAdmin = Boolean(user?.isGeneralAdmin);
+
   const [activeTab, setActiveTab] = useState<'submissions' | 'deadlines'>('submissions');
   const [submissions, setSubmissions] = useState<SubmissionReviewItem[]>([]);
   const [deadlines, setDeadlines] = useState<DeadlineOverviewItem[]>([]);
@@ -379,18 +383,29 @@ export const AdminGradeApprovalPage: React.FC = () => {
                                 <Eye className="w-3.5 h-3.5" /> መርምር
                               </button>
 
-                              {/* Approve Button */}
+                              {/* Approve Button (General Admin Only) */}
                               {sub.status === 'SUBMITTED' && (
                                 <button
-                                  onClick={() => handleApprove(sub.id)}
-                                  disabled={actionLoading}
-                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                  onClick={() => {
+                                    if (!isGeneralAdmin) {
+                                      alert('ውጤት የማጽደቅ ስልጣን የዋና አስተዳዳሪ (General Admin) ብቻ ነው።');
+                                      return;
+                                    }
+                                    handleApprove(sub.id);
+                                  }}
+                                  disabled={actionLoading || !isGeneralAdmin}
+                                  title={!isGeneralAdmin ? 'ውጤት የማጽደቅ ስልጣን የዋና አስተዳዳሪ (General Admin) ብቻ ነው' : ''}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm ${
+                                    isGeneralAdmin
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  }`}
                                 >
                                   <CheckCircle2 className="w-3.5 h-3.5" /> አጽድቅ
                                 </button>
                               )}
 
-                              {/* Reject Button */}
+                              {/* Reject Button (Result Management Admin & General Admin) */}
                               {sub.status === 'SUBMITTED' && (
                                 <button
                                   onClick={() => setRejectionSubmissionId(sub.id)}
@@ -401,24 +416,45 @@ export const AdminGradeApprovalPage: React.FC = () => {
                                 </button>
                               )}
 
-                              {/* Publish Button */}
+                              {/* Publish Button (General Admin Only) */}
                               {sub.status === 'APPROVED' && (
                                 <button
-                                  onClick={() => handlePublish(sub.id)}
-                                  disabled={actionLoading}
-                                  className="px-2.5 py-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                  onClick={() => {
+                                    if (!isGeneralAdmin) {
+                                      alert('ውጤት ይፋ የማድረግ ስልጣን የዋና አስተዳዳሪ (General Admin) ብቻ ነው።');
+                                      return;
+                                    }
+                                    handlePublish(sub.id);
+                                  }}
+                                  disabled={actionLoading || !isGeneralAdmin}
+                                  title={!isGeneralAdmin ? 'ውጤት ይፋ የማድረግ ስልጣን የዋና አስተዳዳሪ (General Admin) ብቻ ነው' : ''}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm ${
+                                    isGeneralAdmin
+                                      ? 'bg-brand-700 hover:bg-brand-800 text-white'
+                                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  }`}
                                 >
                                   <Globe className="w-3.5 h-3.5" /> ይፋ አድርግ
                                 </button>
                               )}
 
-                              {/* Reopen Button */}
+                              {/* Reopen Button (General Admin Only) */}
                               {(sub.status === 'APPROVED' || sub.status === 'PUBLISHED') && (
                                 <button
-                                  onClick={() => setReopenSubmissionId(sub.id)}
-                                  disabled={actionLoading}
-                                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                                  title="ውጤቱን ዳግም ክፈት"
+                                  onClick={() => {
+                                    if (!isGeneralAdmin) {
+                                      alert('ውጤትን ዳግም የመክፈት ስልጣን የዋና አስተዳዳሪ (General Admin) ብቻ ነው።');
+                                      return;
+                                    }
+                                    setReopenSubmissionId(sub.id);
+                                  }}
+                                  disabled={actionLoading || !isGeneralAdmin}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${
+                                    isGeneralAdmin
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  }`}
+                                  title={!isGeneralAdmin ? 'የዋና አስተዳዳሪ ስልጣን ይጠይቃል' : 'ውጤቱን ዳግም ክፈት'}
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" /> ዳግም ክፈት
                                 </button>

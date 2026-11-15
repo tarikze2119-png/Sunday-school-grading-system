@@ -115,15 +115,19 @@ async function runFrontendVerificationTests() {
     const reportCard = fs.readFileSync(path.resolve(rootDir, 'client/src/components/grades/ReportCardModal.tsx'), 'utf8');
     assert(reportCard.includes('window.print()'), 'Report card must trigger window.print()');
     assert(reportCard.includes('print:hidden'), 'Report card controls must hide on print');
-    assert(reportCard.includes('print:p-0'), 'Report card must use print padding optimizations');
     assert(reportCard.includes('የኢትዮጵያ ኦርቶዶክስ ተዋሕዶ ቤተክርስቲያን'), 'Report card must feature authentic Church header');
+    assert(reportCard.includes('management-report-card-print-restriction-notice'), 'Report card must render print restriction notice for Management');
+    assert(reportCard.includes('isAdminOrSuperAdmin ? \'print:p-8\' : \'print:hidden\''), 'Report card must hide content on print for Management');
 
     const transcript = fs.readFileSync(path.resolve(rootDir, 'client/src/components/grades/MultiYearTranscriptModal.tsx'), 'utf8');
     assert(transcript.includes('window.print()'), 'Transcript must trigger window.print()');
     assert(transcript.includes('toEthiopianDateString'), 'Transcript must format dates with Ethiopian calendar');
     assert(transcript.includes('cumulativeGpa'), 'Transcript must show cumulative GPA calculation');
+    assert(transcript.includes('management-print-restriction-notice'), 'Transcript modal must render print restriction notice for Management');
+    assert(transcript.includes('isAdminOrSuperAdmin'), 'Transcript modal must distinguish admin from non-admin roles');
+    assert(transcript.includes('print:hidden'), 'Transcript modal must suppress official content on print for Management');
 
-    console.log('  ✅ 5. Printable Report Card & Multi-Year Transcript verified (Ethiopian Calendar, Church seals, print styles)');
+    console.log('  ✅ 5. Printable Report Card & Multi-Year Transcript verified (Ethiopian Calendar, Church seals, role-aware print restrictions)');
     passed++;
   }
 

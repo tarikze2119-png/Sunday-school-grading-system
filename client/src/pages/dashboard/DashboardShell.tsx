@@ -26,9 +26,9 @@ export const DashboardShell: React.FC = () => {
   const getRoleLabel = (role?: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
-        return 'ዋና አስተዳዳሪ';
+        return 'ዋና የበላይ አስተዳዳሪ (Super Admin)';
       case 'ADMIN':
-        return 'አስተዳዳሪ';
+        return user?.isGeneralAdmin ? 'ዋና አስተዳዳሪ (General Admin)' : 'አስተዳዳሪ (Admin)';
       case 'MANAGEMENT':
         return 'የሰንበት ት/ቤት አመራር';
       case 'TEACHER':
@@ -45,7 +45,9 @@ export const DashboardShell: React.FC = () => {
       case 'SUPER_ADMIN':
         return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'ADMIN':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return user?.isGeneralAdmin
+          ? 'bg-amber-100 text-amber-900 border-amber-300 font-black'
+          : 'bg-blue-100 text-blue-800 border-blue-200';
       case 'MANAGEMENT':
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'TEACHER':

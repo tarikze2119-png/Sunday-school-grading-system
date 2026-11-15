@@ -30,6 +30,27 @@ router.patch(
   (req, res, next) => userController.toggleStatus(req, res, next)
 );
 
+// Soft delete user (Super Admin only)
+router.delete(
+  '/:id',
+  authorizeRole([UserRole.SUPER_ADMIN]),
+  (req, res, next) => userController.deleteUser(req, res, next)
+);
+
+// Restore soft-deleted user (Super Admin only)
+router.patch(
+  '/:id/restore',
+  authorizeRole([UserRole.SUPER_ADMIN]),
+  (req, res, next) => userController.restoreUser(req, res, next)
+);
+
+// Update admin responsibilities (Super Admin and General Admin)
+router.patch(
+  '/:id/responsibilities',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  (req, res, next) => userController.updateResponsibilities(req, res, next)
+);
+
 // Audit logs (Super Admin only)
 router.get(
   '/audit-logs',

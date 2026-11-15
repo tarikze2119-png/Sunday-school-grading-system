@@ -479,8 +479,42 @@ export const MultiYearTranscriptModal: React.FC<Props> = ({ data, onClose, onSta
           </div>
         )}
 
+        {/* Dedicated Print Media Restriction Notice for Management and unauthorized roles */}
+        {!isAdminOrSuperAdmin && (
+          <div
+            className="hidden print:flex flex-col items-center justify-center min-h-[60vh] p-12 text-center border-2 border-dashed border-slate-400 rounded-3xl space-y-6 font-ethiopic my-auto"
+            id="management-print-restriction-notice"
+          >
+            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-800">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div className="space-y-3 max-w-xl">
+              <h2 className="text-xl font-black text-slate-900">
+                ይፋዊ የትምህርት ማስረጃ የማተም ፈቃድ አልተሰጠም (Printing Prohibited)
+              </h2>
+              <p className="text-sm font-bold text-brand-900">
+                ሐይመተ አብርሃም ሰንበት ትምህርት ቤት • የትምህርት ክፍል
+              </p>
+              <p className="text-xs text-slate-700 leading-relaxed pt-2">
+                የሰንበት ት/ቤት አመራር አካላት (Management) ይፋዊ የትምህርት ማስረጃዎችን በስክሪን ላይ የመመልከት ፈቃድ ብቻ አላቸው። ሰነዱን በወረቀት ወይም በPDF የማተም፣ የማውጣት እና የማሰራጨት ስልጣን ለአስተዳዳሪዎች (Admin / Super Admin) ብቻ የተወሰነ ነው።
+              </p>
+              <p className="text-[11px] text-slate-500 font-mono pt-3 border-t border-slate-200">
+                OFFICIAL RESTRICTION NOTICE: Management role is restricted to read-only on-screen viewing. Reproduction, export, and printing of official transcripts are prohibited for this role.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Printable Document Body */}
-        <div className="p-6 sm:p-10 overflow-y-auto space-y-6 print:p-0 print:m-0 print:overflow-visible relative" id="printable-transcript-doc">
+        {/* For MANAGEMENT / unauthorized roles: suppress all official transcript content in print media */}
+        <div
+          className={`p-6 sm:p-10 overflow-y-auto space-y-6 relative ${
+            isAdminOrSuperAdmin
+              ? 'print:p-0 print:m-0 print:overflow-visible'
+              : 'print:hidden'
+          }`}
+          id="printable-transcript-doc"
+        >
 
           {/* Watermark */}
           {isDraftView && (

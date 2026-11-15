@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import courseController from '../controllers/course.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -13,11 +13,13 @@ router.get('/', (req, res, next) => courseController.listCourses(req, res, next)
 router.post(
   '/',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.createCourse(req, res, next)
 );
 router.put(
   '/:id',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.updateCourse(req, res, next)
 );
 
@@ -27,6 +29,7 @@ router.get('/offerings/:id', (req, res, next) => courseController.getOfferingByI
 router.post(
   '/offerings',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.createOffering(req, res, next)
 );
 
@@ -34,12 +37,14 @@ router.post(
 router.post(
   '/offerings/:offeringId/assign-teacher',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.assignTeacher(req, res, next)
 );
 
 router.delete(
   '/offerings/teacher-assignments/:assignmentId',
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.removeTeacher(req, res, next)
 );
 

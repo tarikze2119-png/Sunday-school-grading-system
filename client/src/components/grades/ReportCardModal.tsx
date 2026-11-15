@@ -1,6 +1,7 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { StudentTranscript } from '../../types/grade.types';
-import { Printer, X, Award, CheckCircle } from 'lucide-react';
+import { Printer, X, Award, ShieldCheck, CheckCircle } from 'lucide-react';
 
 interface Props {
   transcript: StudentTranscript;
@@ -8,7 +9,14 @@ interface Props {
 }
 
 export const ReportCardModal: React.FC<Props> = ({ transcript, onClose }) => {
+  const { user } = useAuth();
+  const isAdminOrSuperAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+
   const handlePrint = () => {
+    if (!isAdminOrSuperAdmin) {
+      alert('ይፋዊ የውጤት ካርድ የማተም ፈቃድ ለአስተዳዳሪዎች ብቻ የተፈቀደ ነው።');
+      return;
+    }
     window.print();
   };
 
@@ -24,13 +32,17 @@ export const ReportCardModal: React.FC<Props> = ({ transcript, onClose }) => {
             <h2 className="text-base font-bold text-slate-900">የሰንበት ት/ቤት ይፋዊ የውጤት ካርድ</h2>
           </div>
           <div className="flex items-center gap-2">
+            {isAdminOrSuperAdmin && (
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" /> አትም (Print / PDF)
+              </button>
+            )}
             <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" /> አትም (Print / PDF)
-            </button>
-            <button
+              type="button"
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
             >
@@ -39,10 +51,35 @@ export const ReportCardModal: React.FC<Props> = ({ transcript, onClose }) => {
           </div>
         </div>
 
+        {/* Dedicated Print Media Restriction Notice for Management and unauthorized roles */}
+        {!isAdminOrSuperAdmin && (
+          <div
+            className="hidden print:flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-400 rounded-2xl space-y-4 font-ethiopic my-auto"
+            id="management-report-card-print-restriction-notice"
+          >
+            <ShieldCheck className="w-12 h-12 text-slate-700" />
+            <h2 className="text-lg font-black text-slate-900">
+              ይፋዊ የውጤት ካርድ የማተም ፈቃድ አልተሰጠም (Printing Prohibited)
+            </h2>
+            <p className="text-xs text-slate-700 max-w-md leading-relaxed">
+              የሰንበት ት/ቤት አመራር አካላት (Management) የውጤት ካርዶችን በስክሪን ላይ የመመልከት ፈቃድ ብቻ አላቸው። ሰነዱን በወረቀት ወይም በPDF የማተምና የማውጣት ስልጣን ለአስተዳዳሪዎች (Admin / Super Admin) ብቻ የተወሰነ ነው።
+            </p>
+            <p className="text-[10px] text-slate-500 font-mono">
+              OFFICIAL RESTRICTION NOTICE: Management role is restricted to read-only on-screen viewing. Printing and PDF export are prohibited for this role.
+            </p>
+          </div>
+        )}
+
         {/* ========================================================= */}
         {/* PRINTABLE OFFICIAL REPORT CARD DOCUMENT                   */}
+        {/* For MANAGEMENT / unauthorized roles: suppress all official content in print media */}
         {/* ========================================================= */}
-        <div className="p-8 sm:p-12 space-y-6 print:p-8" id="printable-report-card">
+        <div
+          className={`p-8 sm:p-12 space-y-6 ${
+            isAdminOrSuperAdmin ? 'print:p-8' : 'print:hidden'
+          }`}
+          id="printable-report-card"
+        >
           {/* Church Header */}
           <div className="text-center space-y-2 border-b-2 border-brand-900 pb-5">
             <div className="flex items-center justify-center gap-3 mb-2">

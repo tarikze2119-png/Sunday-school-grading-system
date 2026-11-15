@@ -72,6 +72,74 @@ export class UserController {
     }
   }
 
+  async deleteUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      const result = await userService.deleteUser(
+        { id: req.user!.id, role: req.user!.role, username: req.user!.username },
+        id,
+        ipAddress,
+        userAgent
+      );
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async restoreUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      const result = await userService.restoreUser(
+        { id: req.user!.id, role: req.user!.role, username: req.user!.username },
+        id,
+        ipAddress,
+        userAgent
+      );
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateResponsibilities(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { responsibilities } = req.body;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      const result = await userService.updateAdminResponsibilities(
+        { id: req.user!.id, role: req.user!.role, username: req.user!.username },
+        id,
+        responsibilities || [],
+        ipAddress,
+        userAgent
+      );
+
+      res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAuditLogs(req: Request, res: Response, next: NextFunction) {
     try {
       const { page, limit } = req.query;

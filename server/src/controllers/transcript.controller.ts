@@ -1,6 +1,36 @@
 import { Request, Response } from 'express';
 import transcriptService from '../services/transcript.service.js';
 
+function sendTranscriptError(res: Response, error: any, defaultMsg: string): void {
+  const statusCode =
+    error.statusCode ||
+    (error.message?.includes('ፈቃድ የለዎትም')
+      ? 403
+      : error.message?.includes('አልተገኘም')
+      ? 404
+      : error.message?.includes('ንቁ ረቂቅ')
+      ? 409
+      : 400);
+
+  const errorCode =
+    error.code ||
+    (statusCode === 403
+      ? 'FORBIDDEN'
+      : statusCode === 404
+      ? 'NOT_FOUND'
+      : statusCode === 409
+      ? 'CONFLICT'
+      : statusCode >= 500
+      ? 'INTERNAL_SERVER_ERROR'
+      : 'BAD_REQUEST');
+
+  res.status(statusCode).json({
+    success: false,
+    message: error.message || defaultMsg,
+    code: errorCode,
+  });
+}
+
 export class TranscriptController {
   async getOfficialTranscript(req: Request, res: Response): Promise<void> {
     try {
@@ -19,15 +49,7 @@ export class TranscriptController {
         data: transcript,
       });
     } catch (error: any) {
-      const statusCode = error.message.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message.includes('አልተገኘም')
-        ? 404
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'ይፋዊ የትምህርት ማስረጃውን ማውጣት አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'ይፋዊ የትምህርት ማስረጃውን ማውጣት አልተቻለም።');
     }
   }
 
@@ -48,15 +70,7 @@ export class TranscriptController {
         data: draft,
       });
     } catch (error: any) {
-      const statusCode = error.message.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message.includes('አልተገኘም')
-        ? 404
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'ረቂቅ የትምህርት ማስረጃውን ማውጣት አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'ረቂቅ የትምህርት ማስረጃውን ማውጣት አልተቻለም።');
     }
   }
 
@@ -67,10 +81,11 @@ export class TranscriptController {
       const requestingUserRole = req.user!.role;
 
       const parsedVersion = parseInt(versionNumber, 10);
-      if (isNaN(parsedVersion) || parsedVersion <= 0) {
+      if (isNaN(parsedVersion) || parsedVersion < 1) {
         res.status(400).json({
           success: false,
-          message: 'ትክክለኛ የቅጽ ቁጥር (Version number) ያስገቡ።',
+          message: 'ትክክለኛ የቅጽ ቁጥር (Version number) መገለጽ አለበት።',
+          code: 'INVALID_VERSION_NUMBER',
         });
         return;
       }
@@ -87,15 +102,7 @@ export class TranscriptController {
         data: versionDoc,
       });
     } catch (error: any) {
-      const statusCode = error.message.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message.includes('አልተገኘም')
-        ? 404
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'የቀደመ የትምህርት ማስረጃ ቅጽ ማውጣት አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'የቀደመ የትምህርት ማስረጃ ቅጽ ማውጣት አልተቻለም።');
     }
   }
 
@@ -117,19 +124,7 @@ export class TranscriptController {
         data: transcript,
       });
     } catch (error: any) {
-      const statusCode = error.statusCode
-        ? error.statusCode
-        : error.message?.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message?.includes('አልተገኘም')
-        ? 404
-        : error.message?.includes('ንቁ ረቂቅ')
-        ? 409
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'ይፋዊ የትምህርት ማስረጃውን ማዘጋጀት አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'ይፋዊ የትምህርት ማስረጃውን ማዘጋጀት አልተቻለም።');
     }
   }
 
@@ -151,19 +146,7 @@ export class TranscriptController {
         data: transcript,
       });
     } catch (error: any) {
-      const statusCode = error.statusCode
-        ? error.statusCode
-        : error.message?.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message?.includes('አልተገኘም')
-        ? 404
-        : error.message?.includes('ንቁ ረቂቅ') || error.message?.includes('ረቂቅ')
-        ? 409
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'ይፋዊ የትምህርት ማስረጃውን ማጽደቅ አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'ይፋዊ የትምህርት ማስረጃውን ይፋ ማድረግ አልተቻለም።');
     }
   }
 
@@ -185,17 +168,7 @@ export class TranscriptController {
         data: transcript,
       });
     } catch (error: any) {
-      const statusCode = error.statusCode
-        ? error.statusCode
-        : error.message?.includes('ፈቃድ የለዎትም')
-        ? 403
-        : error.message?.includes('አልተገኘም') || error.message?.includes('የለም')
-        ? 400
-        : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'ረቂቁን መሰረዝ አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'ረቂቁን መሰረዝ አልተቻለም።');
     }
   }
 
@@ -214,11 +187,7 @@ export class TranscriptController {
         data: history,
       });
     } catch (error: any) {
-      const statusCode = error.message.includes('ፈቃድ የለዎትም') ? 403 : 400;
-      res.status(statusCode).json({
-        success: false,
-        message: error.message || 'የማስረጃውን ታሪክ ማውጣት አልተቻለም።',
-      });
+      sendTranscriptError(res, error, 'የማስረጃውን ታሪክ ማውጣት አልተቻለም።');
     }
   }
 }
