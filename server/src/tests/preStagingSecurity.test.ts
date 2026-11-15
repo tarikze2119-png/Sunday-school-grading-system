@@ -1206,7 +1206,64 @@ async function runPreStagingSecurityTests(): Promise<void> {
         }),
       (err: any) => err.message.includes('Conflicting environment configuration')
     );
-    // Conflict: VERCEL_ENV=preview but NODE_ENV=production
+    // Conflict: VERCEL_ENV=production but NODE_ENV=test
+    assert.throws(
+      () =>
+        resolveRuntimeDatabaseUrl({
+          vercelEnv: 'production',
+          nodeEnv: 'test',
+          databaseUrl: rawUrl,
+        }),
+      (err: any) => err.message.includes('Conflicting environment configuration')
+    );
+  });
+
+  test('PREVIEW-PROD-1: Preview + NODE_ENV=production + staging database is normalized and allowed', () => {
+    const rawUrl = `postgresql://user:pass@${STG_POOLED_HOST}/db?sslmode=require&channel_binding=require`;
+    const resolved = resolveRuntimeDatabaseUrl({
+      vercelEnv: 'preview',
+      nodeEnv: 'production',
+      stagingPooledHostname: STG_POOLED_HOST,
+      stagingDirectHostname: STG_DIRECT_HOST,
+      databaseUrl: rawUrl,
+    });
+    const parsed = new URL(resolved);
+    assert.strictEqual(parsed.hostname, STG_POOLED_HOST);
+    assert.strictEqual(parsed.searchParams.has('channel_binding'), false);
+    assert.strictEqual(parsed.searchParams.get('connect_timeout'), '30');
+    assert.strictEqual(parsed.searchParams.get('pool_timeout'), '30');
+  });
+
+  test('PREVIEW-PROD-2: Preview + NODE_ENV=production + production database is strictly rejected', () => {
+    const rawProdUrl = `postgresql://user:pass@${SUITE6_PROD_HOST}/db?sslmode=require`;
+    assert.throws(
+      () =>
+        resolveRuntimeDatabaseUrl({
+          vercelEnv: 'preview',
+          nodeEnv: 'production',
+          stagingPooledHostname: STG_POOLED_HOST,
+          stagingDirectHostname: STG_DIRECT_HOST,
+          databaseUrl: rawProdUrl,
+        }),
+      (err: any) => err.message.includes('Production database host detected in Preview deployment')
+    );
+  });
+
+  test('PREVIEW-PROD-3: Preview + NODE_ENV=development + staging database is normalized and allowed', () => {
+    const rawUrl = `postgresql://user:pass@${STG_POOLED_HOST}/db?sslmode=require`;
+    const resolved = resolveRuntimeDatabaseUrl({
+      vercelEnv: 'preview',
+      nodeEnv: 'development',
+      stagingPooledHostname: STG_POOLED_HOST,
+      stagingDirectHostname: STG_DIRECT_HOST,
+      databaseUrl: rawUrl,
+    });
+    const parsed = new URL(resolved);
+    assert.strictEqual(parsed.hostname, STG_POOLED_HOST);
+  });
+
+  test('PREVIEW-PROD-4: Preview with missing staging hostname configuration fails closed', () => {
+    const rawUrl = `postgresql://user:pass@${STG_POOLED_HOST}/db?sslmode=require`;
     assert.throws(
       () =>
         resolveRuntimeDatabaseUrl({
@@ -1214,7 +1271,37 @@ async function runPreStagingSecurityTests(): Promise<void> {
           nodeEnv: 'production',
           databaseUrl: rawUrl,
         }),
-      (err: any) => err.message.includes('Conflicting environment configuration')
+      (err: any) => err.message.includes('STAGING_HOSTNAME') || err.message.includes('staging configuration')
+    );
+  });
+
+  test('PREVIEW-PROD-5: Preview with mismatched pooled and direct hostnames fails closed', () => {
+    const rawUrl = `postgresql://user:pass@${STG_POOLED_HOST}/db?sslmode=require`;
+    assert.throws(
+      () =>
+        resolveRuntimeDatabaseUrl({
+          vercelEnv: 'preview',
+          nodeEnv: 'production',
+          stagingPooledHostname: STG_POOLED_HOST,
+          stagingDirectHostname: 'ep-other-project-12345.us-east-2.aws.neon.tech',
+          databaseUrl: rawUrl,
+        }),
+      (err: any) => err.message.includes('Mismatched Neon endpoint pair')
+    );
+  });
+
+  test('PREVIEW-PROD-6: Production environment cannot accidentally use staging configuration', () => {
+    const rawStgUrl = `postgresql://user:pass@${STG_POOLED_HOST}/db?sslmode=require`;
+    assert.throws(
+      () =>
+        resolveRuntimeDatabaseUrl({
+          vercelEnv: 'production',
+          nodeEnv: 'production',
+          stagingPooledHostname: STG_POOLED_HOST,
+          stagingDirectHostname: STG_DIRECT_HOST,
+          databaseUrl: rawStgUrl,
+        }),
+      (err: any) => err.message.includes('Staging database host detected in Production deployment')
     );
   });
 

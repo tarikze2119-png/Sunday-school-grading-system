@@ -465,14 +465,7 @@ export function resolveRuntimeDatabaseUrl(options: DatabaseGuardOptions = {}): s
     );
   }
 
-  // 2. Vercel preview cannot be paired with production NODE_ENV
-  if (vercelEnv === 'preview' && nodeEnv === 'production') {
-    throw new Error(
-      `[DatabaseGuard] Conflicting environment configuration: VERCEL_ENV is '${vercelEnv}' but NODE_ENV is '${nodeEnv}'. Aborting connection.`
-    );
-  }
-
-  // 3. Local staging cannot be paired with production VERCEL_ENV
+  // 2. Local staging cannot be paired with production VERCEL_ENV
   if (nodeEnv === 'staging' && vercelEnv === 'production') {
     throw new Error(
       `[DatabaseGuard] Conflicting environment configuration: NODE_ENV is 'staging' but VERCEL_ENV is 'production'. Aborting connection.`
@@ -482,7 +475,7 @@ export function resolveRuntimeDatabaseUrl(options: DatabaseGuardOptions = {}): s
   const isVercelProduction = vercelEnv === 'production';
   const isVercelPreview = vercelEnv === 'preview';
   const isLocalStaging = nodeEnv === 'staging' && !vercelEnv;
-  const isStagingRuntime = isVercelPreview || isLocalStaging || (vercelEnv === 'preview' && nodeEnv === 'staging');
+  const isStagingRuntime = isVercelPreview || isLocalStaging;
 
   // Case 1: Vercel Production Environment
   if (isVercelProduction) {
