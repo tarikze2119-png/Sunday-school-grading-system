@@ -10,7 +10,9 @@ import AdminGradeApprovalPage from '../grades/AdminGradeApprovalPage';
 import ManagementReportsPage from '../reports/ManagementReportsPage';
 import GradingSchemeHub from '../gradingScheme/GradingSchemeHub';
 import AdminAnnouncementPage from '../announcements/AdminAnnouncementPage';
+import AdminManagementSection from './AdminManagementSection';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
+import api from '../../services/api';
 import academicService from '../../services/academicService';
 import studentService from '../../services/studentService';
 import teacherService from '../../services/teacherService';
@@ -37,8 +39,13 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
+  const { user } = useAuth();
+  const isGeneralAdmin = Boolean(user?.isGeneralAdmin || user?.role === 'SUPER_ADMIN');
+  const responsibilities = user?.adminResponsibilities || [];
+
   const [activeModule, setActiveModule] = useState<
     | 'overview'
+    | 'admins'
     | 'approvals'
     | 'announcements'
     | 'schemes'
@@ -60,6 +67,7 @@ export const AdminDashboard: React.FC = () => {
     batchesCount: 0,
     pendingApprovalsCount: 0,
     upcomingDeadlinesCount: 0,
+    subordinateAdminsCount: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -76,6 +84,17 @@ export const AdminDashboard: React.FC = () => {
         gradeService.getDeadlinesOverview().catch(() => []),
       ]);
 
+      let subAdminsCount = 0;
+      if (isGeneralAdmin) {
+        try {
+          const res = await api.get('/users?role=ADMIN&limit=100');
+          const adminUsers: any[] = res.data?.data?.users || [];
+          subAdminsCount = adminUsers.filter((u) => !u.isGeneralAdmin).length;
+        } catch {
+          // gracefully fallback
+        }
+      }
+
       const upcomingDls = (dls || []).filter(
         (d: any) => d.daysRemaining !== null && d.daysRemaining >= 0 && d.isSubmissionOpen
       );
@@ -88,6 +107,7 @@ export const AdminDashboard: React.FC = () => {
         batchesCount: bts.length,
         pendingApprovalsCount: subs.length,
         upcomingDeadlinesCount: upcomingDls.length,
+        subordinateAdminsCount: subAdminsCount,
       });
     } catch (e) {
       console.error(e);
@@ -98,15 +118,12 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchOverviewStats();
-  }, []);
-
-  const { user } = useAuth();
-  const isGeneralAdmin = user?.isGeneralAdmin || user?.role === 'SUPER_ADMIN';
-  const responsibilities = user?.adminResponsibilities || [];
+  }, [isGeneralAdmin]);
 
   const canAccess = (key: string) => {
     if (isGeneralAdmin) return true;
     if (key === 'overview' || key === 'reports') return true;
+    if (key === 'admins') return false;
     if (key === 'announcements') return responsibilities.includes('ANNOUNCEMENT_ADMIN');
     if (key === 'approvals' || key === 'schemes') return responsibilities.includes('RESULT_MANAGEMENT_ADMIN');
     if (key === 'students' || key === 'enrollment') return responsibilities.includes('USER_REGISTRATION_ADMIN');
@@ -116,6 +133,16 @@ export const AdminDashboard: React.FC = () => {
 
   const navItems = [
     { key: 'overview', label: 'ማጠቃለያ ዳሽቦርድ', icon: LayoutDashboard },
+    ...(isGeneralAdmin
+      ? [
+          {
+            key: 'admins',
+            label: 'የአስተዳዳሪዎች ማኔጅመንት',
+            icon: ShieldCheck,
+            count: stats.subordinateAdminsCount > 0 ? stats.subordinateAdminsCount : undefined,
+          },
+        ]
+      : []),
     { 
       key: 'approvals', 
       label: 'የውጤት ማጽደቂያ እና ቀነ ገደብ', 
@@ -292,10 +319,42 @@ export const AdminDashboard: React.FC = () => {
               <div className="text-xl font-black text-slate-900">{stats.upcomingDeadlinesCount}</div>
               <p className="text-[10px] text-slate-400">ክፍት ቀነ ገደቦች</p>
             </div>
+
+            {/* 8. Subordinate Admins (General Admin Only) */}
+            {isGeneralAdmin && (
+              <div
+                onClick={() => setActiveModule('admins')}
+                className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 shadow-sm space-y-1 hover:border-amber-400 cursor-pointer transition-all"
+              >
+                <div className="flex items-center justify-between text-amber-700">
+                  <span className="text-[11px] font-bold text-amber-900">ረዳት አስተዳዳሪዎች</span>
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="text-xl font-black text-amber-950">{stats.subordinateAdminsCount}</div>
+                <p className="text-[10px] text-amber-800">የተመደቡ አስተዳዳሪዎች</p>
+              </div>
+            )}
           </div>
 
           {/* Quick Action Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {isGeneralAdmin && (
+              <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-50 p-6 rounded-2xl border border-amber-200 shadow-sm space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shadow-sm">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">የረዳት አስተዳዳሪዎች ማኔጅመንት</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  የክፍሉን ረዳት አስተዳዳሪዎች ይመዝግቡ፤ ከ4ቱ የአስተዳደር ኃላፊነቶች (ማስታወቂያ፣ ምዝገባ፣ ኮርስ/መምህር፣ ውጤት) መድቡ ወይም ሽሩ።
+                </p>
+                <button
+                  onClick={() => setActiveModule('admins')}
+                  className="text-xs font-bold text-amber-900 hover:text-amber-950 flex items-center gap-1 pt-1 underline"
+                >
+                  ወደ አስተዳዳሪዎች ማኔጅመንት ሂድ &rarr;
+                </button>
+              </div>
+            )}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
               <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-700">
                 <ShieldCheck className="w-5 h-5" />
@@ -367,6 +426,11 @@ export const AdminDashboard: React.FC = () => {
       {/* OTHER SUB-MODULES                                         */}
       {/* ========================================================= */}
       <div>
+        {activeModule === 'admins' && (
+          <ErrorBoundary fallbackTitle="የአስተዳዳሪዎች ማኔጅመንት">
+            <AdminManagementSection />
+          </ErrorBoundary>
+        )}
         {activeModule === 'approvals' && <AdminGradeApprovalPage />}
         {activeModule === 'announcements' && (
           <ErrorBoundary fallbackTitle="የማስታወቂያዎች አስተዳደር">

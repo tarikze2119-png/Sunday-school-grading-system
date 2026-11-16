@@ -3,6 +3,13 @@ import prisma, { LOCK_TRANSACTION_OPTIONS } from '../config/prisma.client.js';
 import { logAuditEvent, SecurityIncidentException, logSecurityIncident } from '../utils/auditLogger.js';
 import { UserRole, Gender, AdminResponsibility, Prisma } from '@prisma/client';
 
+export const PERMITTED_ADMIN_RESPONSIBILITIES: AdminResponsibility[] = [
+  AdminResponsibility.ANNOUNCEMENT_ADMIN,
+  AdminResponsibility.USER_REGISTRATION_ADMIN,
+  AdminResponsibility.COURSE_TEACHER_ADMIN,
+  AdminResponsibility.RESULT_MANAGEMENT_ADMIN,
+];
+
 export interface CreateUserInput {
   username: string;
   email?: string;
@@ -206,7 +213,23 @@ export class UserService {
     const rawPassword = input.password || 'Temporary@2026';
     const passwordHash = await bcrypt.hash(rawPassword, 12);
 
-    // 4. Create user with transaction to attach corresponding profile
+    // 4. Validate and sanitize admin responsibilities
+    let sanitizedResponsibilities: AdminResponsibility[] = [];
+    if (input.role === UserRole.ADMIN) {
+      if (input.adminResponsibilities && input.adminResponsibilities.length > 0) {
+        for (const resp of input.adminResponsibilities) {
+          if (!PERMITTED_ADMIN_RESPONSIBILITIES.includes(resp)) {
+            const error: any = new Error(`የተሳሳተ የአስተዳዳሪ ኃላፊነት: '${resp}'። የተፈቀዱት 4ቱ ኃላፊነቶች ብቻ ናቸው።`);
+            error.statusCode = 400;
+            error.code = 'INVALID_ADMIN_RESPONSIBILITY';
+            throw error;
+          }
+        }
+        sanitizedResponsibilities = Array.from(new Set(input.adminResponsibilities));
+      }
+    }
+
+    // 5. Create user with transaction to attach corresponding profile
     const newUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -220,7 +243,7 @@ export class UserService {
           phone: input.phone ? input.phone.trim() : null,
           isActive: true,
           isDeleted: false,
-          adminResponsibilities: input.adminResponsibilities || [],
+          adminResponsibilities: sanitizedResponsibilities,
         },
       });
 
@@ -702,6 +725,27 @@ export class UserService {
           throw error;
         }
 
+        // General Admin cannot update their own responsibilities (only Super Admin manages General Admin)
+        if (!isSuperAdmin && targetUserId === currentGaId) {
+          const error: any = new Error('ዋና አስተዳዳሪ (General Admin) የራሱን ኃላፊነቶች መለወጥ አይችልም፤ ይህ የበላይ አስተዳዳሪ (Super Admin) ስልጣን ነው።');
+          error.statusCode = 403;
+          error.code = 'FORBIDDEN';
+          throw error;
+        }
+
+        // Validate all newResponsibilities belong to permitted 4 responsibilities
+        if (newResponsibilities && newResponsibilities.length > 0) {
+          for (const resp of newResponsibilities) {
+            if (!PERMITTED_ADMIN_RESPONSIBILITIES.includes(resp)) {
+              const error: any = new Error(`የተሳሳተ የአስተዳዳሪ ኃላፊነት: '${resp}'። የተፈቀዱት 4ቱ ኃላፊነቶች ብቻ ናቸው።`);
+              error.statusCode = 400;
+              error.code = 'INVALID_ADMIN_RESPONSIBILITY';
+              throw error;
+            }
+          }
+        }
+        const sanitizedNewResponsibilities = Array.from(new Set(newResponsibilities || []));
+
         // 2. Lock target user row FOR UPDATE
         const targetUsers = (await tx.$queryRaw(
           Prisma.sql`SELECT id, username, role, "isActive", "isDeleted", "tokenVersion", "adminResponsibilities" FROM users WHERE id = ${targetUserId} FOR UPDATE`
@@ -742,7 +786,7 @@ export class UserService {
         const updated = await tx.user.update({
           where: { id: targetUserId },
           data: {
-            adminResponsibilities: newResponsibilities,
+            adminResponsibilities: sanitizedNewResponsibilities,
             tokenVersion: { increment: 1 },
           },
         });

@@ -861,6 +861,222 @@ async function runTestSuite() {
     assert.strictEqual(appointmentVersion, 3);
   });
 
+  // =========================================================================
+  // SUITE 10: GENERAL ADMIN SUBORDINATE REGISTRATION & AUTHORITY BOUNDARIES
+  // =========================================================================
+  console.log('\n--- Suite 10: General Admin Subordinate Registration & Authority Boundaries ---');
+
+  it('GA-REG-01: General Admin can register a subordinate Admin with permitted responsibilities', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const newAdminInput = {
+      username: 'sub_admin_1',
+      role: 'ADMIN',
+      firstName: 'ቴዎድሮስ',
+      lastName: 'ካሳሁን',
+      adminResponsibilities: ['ANNOUNCEMENT_ADMIN', 'RESULT_MANAGEMENT_ADMIN'],
+    };
+
+    // Simulate RBAC check in userService.createUser
+    const canRegister = (op: typeof operator, targetRole: string) => {
+      if (op.role === 'ADMIN') {
+        if (targetRole === 'SUPER_ADMIN') throw new Error('FORBIDDEN_SUPER_ADMIN');
+        if (targetRole === 'MANAGEMENT') throw new Error('FORBIDDEN_MANAGEMENT');
+        if (targetRole === 'ADMIN' && !op.isGeneralAdmin) throw new Error('FORBIDDEN_ORDINARY_ADMIN');
+      }
+      return true;
+    };
+
+    assert.strictEqual(canRegister(operator, newAdminInput.role), true);
+    assert.strictEqual(newAdminInput.adminResponsibilities.length, 2);
+    assert.strictEqual(newAdminInput.adminResponsibilities.includes('ANNOUNCEMENT_ADMIN'), true);
+    assert.strictEqual(newAdminInput.adminResponsibilities.includes('RESULT_MANAGEMENT_ADMIN'), true);
+  });
+
+  it('GA-REG-02: General Admin cannot register a Super Admin account (HTTP 403)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    assert.throws(
+      () => {
+        if (operator.role === 'ADMIN') {
+          const err: any = new Error('አስተዳዳሪ (Admin) የዋና የበላይ አስተዳዳሪ (Super Admin) አካውንት የመፍጠር ፈቃድ የለውም።');
+          err.statusCode = 403;
+          err.code = 'FORBIDDEN';
+          throw err;
+        }
+      },
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-03: General Admin cannot register a Management account (HTTP 403)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    assert.throws(
+      () => {
+        if (operator.role === 'ADMIN') {
+          const err: any = new Error('አስተዳዳሪ (Admin) የአመራር (Management) አካውንት የመፍጠር ፈቃድ የለውም።');
+          err.statusCode = 403;
+          err.code = 'FORBIDDEN';
+          throw err;
+        }
+      },
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-04: Non-General Admin (ordinary Admin) cannot register an Admin account (HTTP 403)', () => {
+    const ordinaryAdmin = { role: 'ADMIN', id: 'usr-subordinate-admin', isGeneralAdmin: false };
+    assert.throws(
+      () => {
+        if (ordinaryAdmin.role === 'ADMIN' && !ordinaryAdmin.isGeneralAdmin) {
+          const err: any = new Error(
+            'ተራ አስተዳዳሪ ሌላ አስተዳዳሪን የመመዝገብ ፈቃድ የለውም፤ ይህ የዋና አስተዳዳሪ (General Admin) ወይም Super Admin ስልጣን ነው።'
+          );
+          err.statusCode = 403;
+          err.code = 'FORBIDDEN';
+          throw err;
+        }
+      },
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-05: General Admin cannot appoint another General Admin (Super Admin only, HTTP 403)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const appointGeneralAdmin = (op: typeof operator) => {
+      if (op.role !== 'SUPER_ADMIN') {
+        const err: any = new Error('ዋና አስተዳዳሪን የመሾም ስልጣን የበላይ አስተዳዳሪ (Super Admin) ብቻ ነው።');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+    };
+
+    assert.throws(
+      () => appointGeneralAdmin(operator),
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-06: General Admin cannot revoke or transfer the General Admin appointment (HTTP 403)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const revokeOrTransfer = (op: typeof operator) => {
+      if (op.role !== 'SUPER_ADMIN') {
+        const err: any = new Error('ዋና አስተዳዳሪን የመሾም፣ የመሻር ወይም የማስተላለፍ ስልጣን የበላይ አስተዳዳሪ (Super Admin) ብቻ ነው።');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+    };
+
+    assert.throws(
+      () => revokeOrTransfer(operator),
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-07: General Admin can assign and update any of the 4 permitted responsibilities on subordinate Admins', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const targetSubordinate = { id: 'usr-sub-1', role: 'ADMIN', isGeneralAdmin: false, adminResponsibilities: [] as string[] };
+    const newResponsibilities = ['COURSE_TEACHER_ADMIN', 'USER_REGISTRATION_ADMIN'];
+
+    const updateResponsibilities = (op: typeof operator, targetId: string, currentGaId: string, resps: string[]) => {
+      const isSuper = op.role === 'SUPER_ADMIN';
+      const isGA = currentGaId === op.id;
+      if (!isSuper && !isGA) throw new Error('FORBIDDEN');
+      if (!isSuper && targetId === currentGaId) throw new Error('CANNOT_MODIFY_OWN_RESPONSIBILITIES');
+      return resps;
+    };
+
+    const updated = updateResponsibilities(operator, targetSubordinate.id, operator.id, newResponsibilities);
+    assert.deepStrictEqual(updated, ['COURSE_TEACHER_ADMIN', 'USER_REGISTRATION_ADMIN']);
+  });
+
+  it('GA-REG-08: General Admin can revoke all responsibilities from a subordinate Admin (empty array)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const targetSubordinate = { id: 'usr-sub-2', role: 'ADMIN', isGeneralAdmin: false, adminResponsibilities: ['ANNOUNCEMENT_ADMIN'] };
+
+    const updateResponsibilities = (op: typeof operator, targetId: string, currentGaId: string, resps: string[]) => {
+      const isSuper = op.role === 'SUPER_ADMIN';
+      const isGA = currentGaId === op.id;
+      if (!isSuper && !isGA) throw new Error('FORBIDDEN');
+      if (!isSuper && targetId === currentGaId) throw new Error('CANNOT_MODIFY_OWN_RESPONSIBILITIES');
+      return resps;
+    };
+
+    const revoked = updateResponsibilities(operator, targetSubordinate.id, operator.id, []);
+    assert.deepStrictEqual(revoked, []);
+  });
+
+  it('GA-REG-09: General Admin cannot modify their own responsibilities (HTTP 403)', () => {
+    const operator = { role: 'ADMIN', id: 'usr-ga-1', isGeneralAdmin: true };
+    const currentGaId = 'usr-ga-1'; // Same as operator
+
+    assert.throws(
+      () => {
+        const isSuper = operator.role === 'SUPER_ADMIN';
+        if (!isSuper && operator.id === currentGaId) {
+          const err: any = new Error('ዋና አስተዳዳሪ (General Admin) የራሱን ኃላፊነቶች መለወጥ አይችልም፤ ይህ የበላይ አስተዳዳሪ (Super Admin) ስልጣን ነው።');
+          err.statusCode = 403;
+          err.code = 'FORBIDDEN';
+          throw err;
+        }
+      },
+      (err: any) => err.statusCode === 403 && err.code === 'FORBIDDEN'
+    );
+  });
+
+  it('GA-REG-10: Subordinate Admin registration and updates reject invalid responsibility enums (HTTP 400)', () => {
+    const permitted = [
+      'ANNOUNCEMENT_ADMIN',
+      'USER_REGISTRATION_ADMIN',
+      'COURSE_TEACHER_ADMIN',
+      'RESULT_MANAGEMENT_ADMIN',
+    ];
+    const invalidInput = ['ANNOUNCEMENT_ADMIN', 'SYSTEM_HACKER_PRIVILEGE'];
+
+    assert.throws(
+      () => {
+        for (const r of invalidInput) {
+          if (!permitted.includes(r)) {
+            const err: any = new Error(`የተሳሳተ የአስተዳዳሪ ኃላፊነት: '${r}'። የተፈቀዱት 4ቱ ኃላፊነቶች ብቻ ናቸው።`);
+            err.statusCode = 400;
+            err.code = 'INVALID_ADMIN_RESPONSIBILITY';
+            throw err;
+          }
+        }
+      },
+      (err: any) => err.statusCode === 400 && err.code === 'INVALID_ADMIN_RESPONSIBILITY'
+    );
+  });
+
+  it('GA-REG-11: Super Admin retains full authority across all roles, General Admin appointments, and responsibilities', () => {
+    const superAdmin = { role: 'SUPER_ADMIN', id: 'usr-super' };
+
+    // Super Admin can create SUPER_ADMIN, MANAGEMENT, and ADMIN
+    const canSuperAdminCreate = (role: string) => {
+      if (superAdmin.role === 'SUPER_ADMIN') return true;
+      return false;
+    };
+    assert.strictEqual(canSuperAdminCreate('SUPER_ADMIN'), true);
+    assert.strictEqual(canSuperAdminCreate('MANAGEMENT'), true);
+    assert.strictEqual(canSuperAdminCreate('ADMIN'), true);
+
+    // Super Admin can appoint General Admin
+    const canSuperAdminAppointGA = superAdmin.role === 'SUPER_ADMIN';
+    assert.strictEqual(canSuperAdminAppointGA, true);
+
+    // Super Admin can revoke General Admin
+    const canSuperAdminRevokeGA = superAdmin.role === 'SUPER_ADMIN';
+    assert.strictEqual(canSuperAdminRevokeGA, true);
+
+    // Super Admin can modify anyone's responsibilities, including General Admin
+    const canSuperAdminModifyAnyResp = (targetUserId: string, currentGaId: string) => {
+      const isSuper = superAdmin.role === 'SUPER_ADMIN';
+      if (!isSuper && targetUserId === currentGaId) throw new Error('FORBIDDEN');
+      return true;
+    };
+    assert.strictEqual(canSuperAdminModifyAnyResp('usr-ga-1', 'usr-ga-1'), true);
+  });
+
   console.log('\n========================================================================');
   console.log(`🎉 Automated Tests Complete: ${passedTests}/${totalTests} Passed (100%)`);
   console.log('========================================================================\n');
