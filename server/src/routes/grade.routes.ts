@@ -108,11 +108,11 @@ router.post(
   (req, res) => gradeController.approveSubmission(req, res)
 );
 
-// Review & Rejection (Result Management Admin or Super Admin)
+// Review & Rejection (Result Management Admin or General Admin)
 router.post(
   '/submissions/:submissionId/reject',
-  authorizeRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradeController.rejectSubmission(req, res)
 );
 

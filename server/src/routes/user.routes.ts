@@ -44,10 +44,10 @@ router.patch(
   (req, res, next) => userController.restoreUser(req, res, next)
 );
 
-// Update admin responsibilities (Super Admin and General Admin)
+// Update admin responsibilities (General Admin only)
 router.patch(
   '/:id/responsibilities',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
   (req, res, next) => userController.updateResponsibilities(req, res, next)
 );
 

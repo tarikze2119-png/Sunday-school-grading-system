@@ -23,6 +23,22 @@ export interface RegisterStudentInput {
   password?: string;
 }
 
+export interface UpdateStudentInput {
+  firstName: string;
+  lastName: string;
+  grandfatherName?: string;
+  baptismalName?: string;
+  gender?: Gender;
+  dateOfBirth?: string | Date;
+  phone?: string;
+  email?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  emergencyContact?: string;
+  address?: string;
+  batchId?: string;
+}
+
 export class StudentService {
   /**
    * Register a new student under an Academic Year & Batch
@@ -433,6 +449,238 @@ export class StudentService {
 
     // UTF-8 BOM so Excel opens Amharic characters perfectly
     return '\uFEFF' + csvRows.join('\r\n');
+  }
+
+  /**
+   * Get Student by ID or User ID with complete profile, enrollment, and registration history
+   */
+  async getStudentById(id: string) {
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [{ id }, { userId: id }],
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            phone: true,
+            firstName: true,
+            lastName: true,
+            grandfatherName: true,
+            isActive: true,
+          },
+        },
+        academicYear: { select: { id: true, name: true, code: true, status: true } },
+        batch: { select: { id: true, name: true, code: true, stageLevel: true, isActive: true } },
+        registrations: {
+          orderBy: { registeredAt: 'desc' },
+          include: {
+            academicYear: { select: { name: true } },
+            batch: { select: { name: true } },
+          },
+        },
+        enrollments: {
+          include: {
+            courseOffering: {
+              include: {
+                course: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!student) {
+      const error: any = new Error('ተማሪው በሲስተሙ ውስጥ አልተገኘም።');
+      error.statusCode = 404;
+      error.code = 'STUDENT_NOT_FOUND';
+      throw error;
+    }
+
+    return student;
+  }
+
+  /**
+   * Update Student profile (admissionNumber and historical records remain immutable)
+   */
+  async updateStudentProfile(id: string, input: UpdateStudentInput, operatorId: string) {
+    const student = await prisma.student.findFirst({
+      where: { OR: [{ id }, { userId: id }] },
+      include: { user: true, batch: true, academicYear: true },
+    });
+
+    if (!student) {
+      const error: any = new Error('ተማሪው በሲስተሙ ውስጥ አልተገኘም።');
+      error.statusCode = 404;
+      error.code = 'STUDENT_NOT_FOUND';
+      throw error;
+    }
+
+    if (!input.firstName?.trim() || !input.lastName?.trim()) {
+      const error: any = new Error('የተማሪው የመጀመሪያ እና የአባት ስም መሞላት አለበት።');
+      error.statusCode = 400;
+      error.code = 'NAME_REQUIRED';
+      throw error;
+    }
+
+    // Phone uniqueness check if changed
+    if (input.phone && input.phone.trim() !== (student.user.phone || '')) {
+      const dupPhone = await prisma.user.findFirst({
+        where: { phone: input.phone.trim(), id: { not: student.userId } },
+      });
+      if (dupPhone) {
+        const error: any = new Error(`ይህ ስልክ ቁጥር '${input.phone}' አስቀድሞ በሌላ ተጠቃሚ ተመዝግቧል።`);
+        error.statusCode = 409;
+        error.code = 'DUPLICATE_PHONE';
+        throw error;
+      }
+    }
+
+    // Email uniqueness check if changed
+    if (input.email && input.email.trim().toLowerCase() !== (student.user.email || '')) {
+      const dupEmail = await prisma.user.findFirst({
+        where: { email: input.email.trim().toLowerCase(), id: { not: student.userId } },
+      });
+      if (dupEmail) {
+        const error: any = new Error(`ይህ ኢሜይል '${input.email}' አስቀድሞ በሌላ ተጠቃሚ ተመዝግቧል።`);
+        error.statusCode = 409;
+        error.code = 'DUPLICATE_EMAIL';
+        throw error;
+      }
+    }
+
+    // Batch validation if changed
+    let newBatch = student.batch;
+    if (input.batchId && input.batchId !== student.batchId) {
+      const b = await prisma.batch.findUnique({ where: { id: input.batchId } });
+      if (!b) {
+        const error: any = new Error('የተመረጠው ምድብ አልተገኘም።');
+        error.statusCode = 404;
+        error.code = 'BATCH_NOT_FOUND';
+        throw error;
+      }
+      newBatch = b;
+    }
+
+    const updatedStudent = await prisma.$transaction(async (tx) => {
+      // 1. Update User info
+      await tx.user.update({
+        where: { id: student.userId },
+        data: {
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          grandfatherName: input.grandfatherName ? input.grandfatherName.trim() : null,
+          phone: input.phone ? input.phone.trim() : null,
+          email: input.email ? input.email.trim().toLowerCase() : null,
+        },
+      });
+
+      // 2. Update Student Profile (admissionNumber is preserved immutably)
+      const updated = await tx.student.update({
+        where: { id: student.id },
+        data: {
+          baptismalName: input.baptismalName ? input.baptismalName.trim() : null,
+          gender: input.gender || student.gender,
+          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+          guardianName: input.guardianName ? input.guardianName.trim() : null,
+          guardianPhone: input.guardianPhone ? input.guardianPhone.trim() : null,
+          emergencyContact: input.emergencyContact ? input.emergencyContact.trim() : null,
+          address: input.address ? input.address.trim() : null,
+          batchId: newBatch.id,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              phone: true,
+              firstName: true,
+              lastName: true,
+              grandfatherName: true,
+              isActive: true,
+            },
+          },
+          academicYear: { select: { id: true, name: true, code: true } },
+          batch: { select: { id: true, name: true, stageLevel: true } },
+          registrations: {
+            orderBy: { registeredAt: 'desc' },
+            include: {
+              academicYear: { select: { name: true } },
+              batch: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      // 3. If batch changed, update current active registration record pointer
+      if (input.batchId && input.batchId !== student.batchId) {
+        await tx.studentRegistration.updateMany({
+          where: { studentId: student.id, academicYearId: student.academicYearId, status: 'ACTIVE' },
+          data: { batchId: newBatch.id },
+        });
+      }
+
+      return updated;
+    });
+
+    await logAuditEvent({
+      userId: operatorId,
+      action: 'UPDATE_STUDENT_PROFILE',
+      entityName: 'Student',
+      entityId: student.id,
+      details: {
+        admissionNumber: student.admissionNumber,
+        fullName: `${input.firstName} ${input.lastName}`,
+        batchChanged: input.batchId !== undefined && input.batchId !== student.batchId,
+      },
+    });
+
+    return updatedStudent;
+  }
+
+  /**
+   * Toggle Student active status (invalidates sessions on deactivation while preserving academic history)
+   */
+  async toggleStudentStatus(id: string, isActive: boolean, operatorId: string) {
+    const student = await prisma.student.findFirst({
+      where: { OR: [{ id }, { userId: id }] },
+      include: { user: true },
+    });
+
+    if (!student) {
+      const error: any = new Error('ተማሪው በሲስተሙ ውስጥ አልተገኘም።');
+      error.statusCode = 404;
+      error.code = 'STUDENT_NOT_FOUND';
+      throw error;
+    }
+
+    await prisma.user.update({
+      where: { id: student.userId },
+      data: {
+        isActive,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    await logAuditEvent({
+      userId: operatorId,
+      action: isActive ? 'ACTIVATE_STUDENT' : 'DEACTIVATE_STUDENT',
+      entityName: 'Student',
+      entityId: student.id,
+      details: {
+        admissionNumber: student.admissionNumber,
+        newStatus: isActive ? 'ACTIVE' : 'INACTIVE',
+      },
+    });
+
+    return {
+      message: `የተማሪ '${student.user.firstName} ${student.user.lastName}' አካውንት ${isActive ? 'በተሳካ ሁኔታ ነቅቷል (Activated)' : 'በተሳካ ሁኔታ ታግዷል (Deactivated)'}።`,
+      isActive,
+    };
   }
 }
 

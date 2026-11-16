@@ -25,7 +25,7 @@ export const verifyStudentRecordOwnership = async (
     return next();
   }
 
-  let requestedStudentId = (req.params.studentId || req.query.studentId) as string;
+  let requestedStudentId = (req.params.studentId || req.params.id || req.query.studentId) as string;
 
   // 1. Student Role: Strict Self-Access Only
   if (req.user.role === UserRole.STUDENT) {
@@ -42,12 +42,13 @@ export const verifyStudentRecordOwnership = async (
       myStudentId = studentProfile?.id;
     }
 
-    if (myStudentId && myStudentId === requestedStudentId) {
+    if ((myStudentId && myStudentId === requestedStudentId) || req.user.id === requestedStudentId) {
       return next();
     }
 
     return res.status(403).json({
       success: false,
+      code: 'FORBIDDEN_STUDENT_RECORD',
       message: 'የሌላ ተማሪን መረጃ የመመልከት ፈቃድ የለዎትም።',
     });
   }
@@ -68,7 +69,12 @@ export const verifyStudentRecordOwnership = async (
         teacher: { userId: req.user.id },
         courseOffering: {
           enrollments: {
-            some: { studentId: requestedStudentId },
+            some: {
+              OR: [
+                { studentId: requestedStudentId },
+                { student: { userId: requestedStudentId } },
+              ],
+            },
           },
         },
       },
@@ -80,6 +86,7 @@ export const verifyStudentRecordOwnership = async (
     if (assignments.length === 0) {
       return res.status(403).json({
         success: false,
+        code: 'FORBIDDEN_TEACHER_STUDENT_UNASSIGNED',
         message: 'መምህሩ ይህንን ተማሪ የሚያስተምሩበት የኮርስ ምደባ የለም።',
       });
     }

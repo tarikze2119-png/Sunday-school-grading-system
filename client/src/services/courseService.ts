@@ -52,6 +52,16 @@ export const courseService = {
     return res.data;
   },
 
+  updateCourse: async (id: string, data: Partial<CourseData>) => {
+    const res = await api.put<{ success: boolean; message: string; data: CourseData }>(`/courses/${id}`, data);
+    return res.data;
+  },
+
+  toggleCourseStatus: async (id: string, isActive: boolean) => {
+    const res = await api.patch<{ success: boolean; message: string; data: CourseData }>(`/courses/${id}/status`, { isActive });
+    return res.data;
+  },
+
   // Offerings
   listOfferings: async (params?: { academicYearId?: string; batchId?: string; teacherId?: string }) => {
     const res = await api.get<{ success: boolean; data: CourseOfferingData[] }>('/courses/offerings/list', { params });
@@ -64,6 +74,16 @@ export const courseService = {
 
   createOffering: async (data: { courseId: string; academicYearId: string; batchId: string; termSemester?: string; primaryTeacherId?: string }) => {
     const res = await api.post<{ success: boolean; message: string; data: CourseOfferingData }>('/courses/offerings', data);
+    return res.data;
+  },
+
+  updateOffering: async (id: string, data: { termSemester?: string; status?: string }) => {
+    const res = await api.put<{ success: boolean; message: string; data: CourseOfferingData }>(`/courses/offerings/${id}`, data);
+    return res.data;
+  },
+
+  toggleOfferingStatus: async (id: string, status: string) => {
+    const res = await api.patch<{ success: boolean; message: string; data: CourseOfferingData }>(`/courses/offerings/${id}/status`, { status });
     return res.data;
   },
 

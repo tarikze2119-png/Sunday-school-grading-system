@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import gradingSchemeController from '../controllers/gradingScheme.controller.js';
 import { authenticateJwt } from '../middlewares/authenticate.js';
-import { authorizeRole } from '../middlewares/authorize.js';
-import { UserRole } from '@prisma/client';
+import { authorizeRole, requireResponsibility } from '../middlewares/authorize.js';
+import { UserRole, AdminResponsibility } from '@prisma/client';
 
 const router = Router();
 
@@ -19,9 +19,11 @@ router.get(
   (req, res) => gradingSchemeController.getCoursesForAssignment(req, res)
 );
 
+// Apply scheme to courses: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.post(
   '/courses/apply',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.applySchemeToCourses(req, res)
 );
 
@@ -36,9 +38,11 @@ router.get(
   (req, res) => gradingSchemeController.getCourseSchemeDetails(req, res)
 );
 
+// Update course scheme: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.put(
   '/courses/:courseOfferingId',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.updateCourseGradingScheme(req, res)
 );
 
@@ -56,9 +60,11 @@ router.get(
   (req, res) => gradingSchemeController.getSchemes(req, res)
 );
 
+// Create reusable scheme template: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.post(
   '/',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.createScheme(req, res)
 );
 
@@ -73,21 +79,27 @@ router.get(
   (req, res) => gradingSchemeController.getSchemeById(req, res)
 );
 
+// Create new version: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.post(
   '/:id/versions',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.createNewVersion(req, res)
 );
 
+// Update scheme metadata: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.put(
   '/:id',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.updateSchemeMetadata(req, res)
 );
 
+// Delete scheme template: exclusively RESULT_MANAGEMENT_ADMIN or General Admin
 router.delete(
   '/:id',
-  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  authorizeRole([UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.RESULT_MANAGEMENT_ADMIN, { allowSuperAdmin: false }),
   (req, res) => gradingSchemeController.deleteScheme(req, res)
 );
 

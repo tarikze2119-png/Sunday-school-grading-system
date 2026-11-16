@@ -12,9 +12,12 @@ import {
   ArrowUpRight, 
   CheckCircle2, 
   AlertCircle, 
-  RefreshCw, 
   History,
-  FileSpreadsheet
+  Edit2,
+  Power,
+  X,
+  Phone,
+  ShieldAlert
 } from 'lucide-react';
 
 export const StudentsPage: React.FC = () => {
@@ -29,9 +32,11 @@ export const StudentsPage: React.FC = () => {
 
   // Modals
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPromoteOpen, setIsPromoteOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedStudentForPromote, setSelectedStudentForPromote] = useState<StudentListItem | null>(null);
+  const [editingStudent, setEditingStudent] = useState<StudentListItem | null>(null);
 
   // Register Form
   const [firstName, setFirstName] = useState('');
@@ -39,10 +44,30 @@ export const StudentsPage: React.FC = () => {
   const [grandfatherName, setGrandfatherName] = useState('');
   const [baptismalName, setBaptismalName] = useState('');
   const [gender, setGender] = useState<'MALE' | 'FEMALE'>('MALE');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
+  const [emergencyContact, setEmergencyContact] = useState('');
+  const [address, setAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit Form State
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editGrandfatherName, setEditGrandfatherName] = useState('');
+  const [editBaptismalName, setEditBaptismalName] = useState('');
+  const [editGender, setEditGender] = useState<'MALE' | 'FEMALE'>('MALE');
+  const [editDateOfBirth, setEditDateOfBirth] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editGuardianName, setEditGuardianName] = useState('');
+  const [editGuardianPhone, setEditGuardianPhone] = useState('');
+  const [editEmergencyContact, setEditEmergencyContact] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editBatchId, setEditBatchId] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   // Promote Form
   const [targetYearId, setTargetYearId] = useState('');
@@ -122,9 +147,13 @@ export const StudentsPage: React.FC = () => {
         grandfatherName,
         baptismalName,
         gender,
+        dateOfBirth: dateOfBirth || undefined,
         phone,
+        email,
         guardianName,
         guardianPhone,
+        emergencyContact,
+        address,
       });
       setMsg({ type: 'success', text: res.message });
       setIsRegisterOpen(false);
@@ -132,14 +161,82 @@ export const StudentsPage: React.FC = () => {
       setLastName('');
       setGrandfatherName('');
       setBaptismalName('');
+      setDateOfBirth('');
       setPhone('');
+      setEmail('');
       setGuardianName('');
       setGuardianPhone('');
+      setEmergencyContact('');
+      setAddress('');
       fetchStudents(selectedYearId, selectedBatchId);
     } catch (err: any) {
-      setMsg({ type: 'error', text: err.message });
+      setMsg({ type: 'error', text: err.response?.data?.message || err.message });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEditModal = (student: StudentListItem) => {
+    setEditingStudent(student);
+    setEditFirstName(student.user.firstName || '');
+    setEditLastName(student.user.lastName || '');
+    setEditGrandfatherName(student.user.grandfatherName || '');
+    setEditBaptismalName(student.baptismalName || '');
+    setEditGender(student.gender || 'MALE');
+    setEditDateOfBirth(student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : '');
+    setEditPhone(student.user.phone || '');
+    setEditEmail(student.user.email || '');
+    setEditGuardianName(student.guardianName || '');
+    setEditGuardianPhone(student.guardianPhone || '');
+    setEditEmergencyContact(student.emergencyContact || '');
+    setEditAddress('');
+    setEditBatchId(student.batchId || '');
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setUpdating(true);
+    setMsg(null);
+    try {
+      const res = await studentService.update(editingStudent.id, {
+        firstName: editFirstName,
+        lastName: editLastName,
+        grandfatherName: editGrandfatherName,
+        baptismalName: editBaptismalName,
+        gender: editGender,
+        dateOfBirth: editDateOfBirth || undefined,
+        phone: editPhone || undefined,
+        email: editEmail || undefined,
+        guardianName: editGuardianName || undefined,
+        guardianPhone: editGuardianPhone || undefined,
+        emergencyContact: editEmergencyContact || undefined,
+        address: editAddress || undefined,
+        batchId: editBatchId || undefined,
+      });
+      setMsg({ type: 'success', text: res.message });
+      setIsEditOpen(false);
+      fetchStudents(selectedYearId, selectedBatchId);
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.response?.data?.message || err.message });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleToggleStatus = async (student: StudentListItem) => {
+    const nextStatus = !student.user.isActive;
+    const actionLabel = nextStatus ? 'ማንቃት' : 'ማገድ';
+    if (!window.confirm(`እርግጠኛ ነዎት የተማሪ '${student.user.firstName} ${student.user.lastName}' አካውንት ${actionLabel} ይፈልጋሉ?`)) {
+      return;
+    }
+    try {
+      const res = await studentService.toggleStatus(student.id, nextStatus);
+      setMsg({ type: 'success', text: res.message });
+      fetchStudents(selectedYearId, selectedBatchId);
+    } catch (err: any) {
+      setMsg({ type: 'error', text: err.response?.data?.message || err.message });
     }
   };
 
@@ -177,7 +274,7 @@ export const StudentsPage: React.FC = () => {
       setIsPromoteOpen(false);
       fetchStudents(selectedYearId, selectedBatchId);
     } catch (err: any) {
-      setMsg({ type: 'error', text: err.message });
+      setMsg({ type: 'error', text: err.response?.data?.message || err.message });
     } finally {
       setSubmitting(false);
     }
@@ -188,7 +285,6 @@ export const StudentsPage: React.FC = () => {
     setSubmitting(true);
     setMsg(null);
     try {
-      // Parse CSV text lines: firstName,lastName,baptismalName,gender,phone,guardianName,guardianPhone
       const lines = csvText.trim().split('\n');
       const rows = lines.map((line) => {
         const parts = line.split(',').map((p) => p.trim().replace(/^["']|["']$/g, ''));
@@ -213,7 +309,7 @@ export const StudentsPage: React.FC = () => {
       setCsvText('');
       fetchStudents(selectedYearId, selectedBatchId);
     } catch (err: any) {
-      setMsg({ type: 'error', text: err.message });
+      setMsg({ type: 'error', text: err.response?.data?.message || err.message });
     } finally {
       setSubmitting(false);
     }
@@ -230,7 +326,7 @@ export const StudentsPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-slate-900 mt-2">የሰንበት ትምህርት ቤት ተማሪዎች ዝርዝር</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            ተማሪዎችን ይመዝግቡ፤ ታሪካዊ መረጃ ሳይበርዝ ወደ አዲስ የትምህርት ዘመን ያሳልፉ፤ በExcel ያውርዱ/ያስገቡ
+            የተማሪዎችን ሙሉ መረጃ ይመዝግቡ፤ ያስተካክሉ፤ ታሪካዊ የትምህርት መዝገብ ሳይበርዝ ወደ አዲስ ምድብ ያሳልፉ
           </p>
         </div>
 
@@ -336,6 +432,7 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-4 py-3">ጾታ</th>
                 <th className="px-4 py-3">የአሁኑ ምድብ</th>
                 <th className="px-4 py-3">የወላጅ ስም እና ስልክ</th>
+                <th className="px-4 py-3">ሁኔታ</th>
                 <th className="px-4 py-3">የምዝገባ ታሪክ</th>
                 <th className="px-4 py-3 text-right">ተግባራት</th>
               </tr>
@@ -369,28 +466,55 @@ export const StudentsPage: React.FC = () => {
                     <div className="font-mono text-[10px] text-slate-500">{s.guardianPhone || s.user.phone || ''}</div>
                   </td>
                   <td className="px-4 py-3">
+                    <Badge variant={s.user.isActive ? 'approved' : 'rejected'}>
+                      {s.user.isActive ? 'ንቁ (Active)' : 'የታገደ (Inactive)'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
                       <History className="w-3 h-3" />
                       {s.registrations?.length || 1} ዓመታት
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="gold"
-                      size="sm"
-                      onClick={() => openPromoteModal(s)}
-                      className="text-xs"
-                    >
-                      <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
-                      አሳልፍ (Promote)
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openEditModal(s)}
+                        className="text-xs"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 mr-1" />
+                        አስተካክል
+                      </Button>
+
+                      <Button
+                        variant="gold"
+                        size="sm"
+                        onClick={() => openPromoteModal(s)}
+                        className="text-xs"
+                      >
+                        <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
+                        አሳልፍ
+                      </Button>
+
+                      <Button
+                        variant={s.user.isActive ? 'outline' : 'secondary'}
+                        size="sm"
+                        onClick={() => handleToggleStatus(s)}
+                        className="text-xs"
+                      >
+                        <Power className="w-3.5 h-3.5 mr-1" />
+                        {s.user.isActive ? 'አግድ' : 'አንቃ'}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
 
               {students.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400">
+                  <td colSpan={9} className="text-center py-12 text-slate-400">
                     ምንም ተማሪ አልተገኘም
                   </td>
                 </tr>
@@ -400,15 +524,197 @@ export const StudentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Modal: Edit Student Profile */}
+      {isEditOpen && editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+                    {editingStudent.admissionNumber}
+                  </span>
+                  <Badge variant={editingStudent.user.isActive ? 'approved' : 'rejected'}>
+                    {editingStudent.user.isActive ? 'ንቁ' : 'የታገደ'}
+                  </Badge>
+                </div>
+                <h3 className="font-bold text-slate-900 text-lg mt-1">የተማሪ መረጃ ማሻሻያ</h3>
+                <p className="text-xs text-slate-500">
+                  የትምህርት ዘመን፡ <strong>{editingStudent.academicYear?.name}</strong> (የመለያ ቁጥር አይቀየርም)
+                </p>
+              </div>
+              <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateStudent} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">መጠሪያ ስም *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የአባት ስም *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የአያት ስም</label>
+                  <input
+                    type="text"
+                    value={editGrandfatherName}
+                    onChange={(e) => setEditGrandfatherName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የክርስትና ስም</label>
+                  <input
+                    type="text"
+                    value={editBaptismalName}
+                    onChange={(e) => setEditBaptismalName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">ጾታ *</label>
+                  <select
+                    value={editGender}
+                    onChange={(e) => setEditGender(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  >
+                    <option value="MALE">ወንድ</option>
+                    <option value="FEMALE">ሴት</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የትውልድ ቀን</label>
+                  <input
+                    type="date"
+                    value={editDateOfBirth}
+                    onChange={(e) => setEditDateOfBirth(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የተማሪ ስልክ ቁጥር</label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">ኢሜይል</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የወላጅ / አሳዳጊ ስም</label>
+                  <input
+                    type="text"
+                    value={editGuardianName}
+                    onChange={(e) => setEditGuardianName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የወላጅ / አሳዳጊ ስልክ ቁጥር</label>
+                  <input
+                    type="text"
+                    value={editGuardianPhone}
+                    onChange={(e) => setEditGuardianPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የአደጋ ጊዜ ተጠሪ ስልክ</label>
+                  <input
+                    type="text"
+                    value={editEmergencyContact}
+                    onChange={(e) => setEditEmergencyContact(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">የተማሪዎች ምድብ (Batch)</label>
+                  <select
+                    value={editBatchId}
+                    onChange={(e) => setEditBatchId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
+                  >
+                    {batches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.stageLevel})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
+                  ሰርዝ
+                </Button>
+                <Button type="submit" variant="primary" size="md" isLoading={updating}>
+                  ለውጦችን መዝግብ
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Register Student */}
       {isRegisterOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-200 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">አዲስ ተማሪ መመዝገቢያ</h3>
-              <p className="text-xs text-slate-500">
-                የትምህርት ዘመን፡ <strong>{years.find((y) => y.id === selectedYearId)?.name}</strong>
-              </p>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">አዲስ ተማሪ መመዝገቢያ</h3>
+                <p className="text-xs text-slate-500">
+                  የትምህርት ዘመን፡ <strong>{years.find((y) => y.id === selectedYearId)?.name}</strong>
+                </p>
+              </div>
+              <button onClick={() => setIsRegisterOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4 text-xs">
@@ -447,7 +753,7 @@ export const StudentsPage: React.FC = () => {
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-bold"
                   />
                 </div>
 
@@ -458,7 +764,7 @@ export const StudentsPage: React.FC = () => {
                     required
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-bold"
                   />
                 </div>
 
@@ -473,13 +779,32 @@ export const StudentsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">የክርስትና ስም (Baptismal Name)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">የክርስትና ስም</label>
                   <input
                     type="text"
-                    placeholder="ለምሳሌ፡ ኃይለ ማርያም፣ ወለተ ጊዮርጊስ"
                     value={baptismalName}
                     onChange={(e) => setBaptismalName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">ስልክ ቁጥር</label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">ኢሜይል</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
                   />
                 </div>
 
@@ -497,7 +822,6 @@ export const StudentsPage: React.FC = () => {
                   <label className="block font-semibold text-slate-700 mb-1">የወላጅ ስልክ ቁጥር</label>
                   <input
                     type="text"
-                    placeholder="+2519..."
                     value={guardianPhone}
                     onChange={(e) => setGuardianPhone(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
@@ -505,7 +829,7 @@ export const StudentsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsRegisterOpen(false)}>
                   ሰርዝ
                 </Button>
@@ -518,33 +842,34 @@ export const StudentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Promote Student to Next Year */}
+      {/* Modal: Promote Student */}
       {isPromoteOpen && selectedStudentForPromote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">ተማሪን ወደ አዲስ የትምህርት ዘመን ማሳለፊያ</h3>
-              <p className="text-xs text-slate-500">
-                ተማሪ፡ <strong>{selectedStudentForPromote.user.firstName} {selectedStudentForPromote.user.lastName}</strong> ({selectedStudentForPromote.admissionNumber})
-              </p>
-            </div>
-
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
-              ማሳሰቢያ፡ ተማሪውን ማሳለፍ (Promote ማድረግ) ያለፉትን የትምህርት ዘመን እና የውጤት መዛግብት በፍጹም አይሰርዝም ወይም አይተካም። 
-              አዲስ የምዝገባ መዝገብ ይፈጠራል።
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">ተማሪን ወደ አዲስ የትምህርት ዘመን ማሳለፍ</h3>
+                <p className="text-xs text-slate-500">
+                  ተማሪ፡ <strong>{selectedStudentForPromote.user.firstName} {selectedStudentForPromote.user.lastName}</strong>
+                </p>
+              </div>
+              <button onClick={() => setIsPromoteOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <form onSubmit={handlePromoteSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">አዲሱ የትምህርት ዘመን *</label>
                 <select
+                  required
                   value={targetYearId}
                   onChange={(e) => handleTargetYearChange(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-bold"
                 >
                   {years.map((y) => (
                     <option key={y.id} value={y.id}>
-                      {y.name}
+                      {y.name} {y.isCurrent ? '(ዋና)' : ''}
                     </option>
                   ))}
                 </select>
@@ -553,6 +878,7 @@ export const StudentsPage: React.FC = () => {
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">አዲሱ የተማሪዎች ምድብ *</label>
                 <select
+                  required
                   value={targetBatchId}
                   onChange={(e) => setTargetBatchId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-medium"
@@ -565,12 +891,16 @@ export const StudentsPage: React.FC = () => {
                 </select>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
+                ተማሪው ሲዛወር የቀደመ የትምህርት ዘመን ውጤት፣ ምዝገባ እና ታሪክ ሳይበረዝ ተጠብቆ ይቀመጣል።
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsPromoteOpen(false)}>
                   ሰርዝ
                 </Button>
-                <Button type="submit" variant="gold" size="md" isLoading={submitting}>
-                  አሳልፍ (Promote)
+                <Button type="submit" variant="primary" size="md" isLoading={submitting}>
+                  ማሳለፍን አረጋግጥ
                 </Button>
               </div>
             </form>
@@ -581,39 +911,35 @@ export const StudentsPage: React.FC = () => {
       {/* Modal: Bulk Import */}
       {isImportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-200 space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">ተማሪዎችን በCSV / Excel በጅምላ ማስገቢያ</h3>
-              <p className="text-xs text-slate-500">
-                የተማሪዎችን ዝርዝር በኮማ (,) የተከፋፈለ ፎርማት ያስገቡ
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-3 rounded-lg text-slate-600 font-mono text-[11px] leading-relaxed">
-              <strong>የአምዶች ቅደም ተከተል:</strong>
-              <div>መጠሪያ_ስም, የአባት_ስም, የክርስትና_ስም, ጾታ(ወንድ/ሴት), ስልክ, የወላጅ_ስም, የወላጅ_ስልክ</div>
-              <div className="text-slate-400 mt-1">ምሳሌ፡ አበበ, ተስፋዬ, ኃይለ ማርያም, ወንድ, 0911000000, ተስፋዬ በቀለ, 0911222222</div>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 space-y-4">
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">የተማሪዎች የጅምላ ምዝገባ (CSV Text)</h3>
+                <p className="text-xs text-slate-500">
+                  ቅርጸት፡ ስም, የአባት ስም, የክርስትና ስም, ጾታ, ስልክ, የወላጅ ስም, የወላጅ ስልክ
+                </p>
+              </div>
+              <button onClick={() => setIsImportOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <form onSubmit={handleBulkImport} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">የውሂብ ዝርዝር (CSV Data) *</label>
-                <textarea
-                  rows={6}
-                  required
-                  placeholder="አበበ, ተስፋዬ, ኃይለ ማርያም, ወንድ, 0911000000, ተስፋዬ, 0911222222&#10;ሰላማዊት, በቀለ, ወለተ ጊዮርጊስ, ሴት, 0911333333, በቀለ, 0911444444"
-                  value={csvText}
-                  onChange={(e) => setCsvText(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 font-mono"
-                />
-              </div>
+              <textarea
+                rows={8}
+                required
+                placeholder="ዳዊት, አበበ, ወልደ ጊዮርጊስ, ወንድ, 0911000000, አበበ ከበደ, 0922000000&#10;ሳራ, ተስፋዬ, ወለተ ማርያም, ሴት, 0911111111, ተስፋዬ በቀለ, 0933333333"
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                className="w-full p-3 font-mono text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsImportOpen(false)}>
                   ሰርዝ
                 </Button>
                 <Button type="submit" variant="primary" size="md" isLoading={submitting}>
-                  አስገባ (Import)
+                  በጅምላ መዝግብ
                 </Button>
               </div>
             </form>

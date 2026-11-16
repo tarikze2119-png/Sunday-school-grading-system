@@ -1,4 +1,5 @@
 import prisma, { LOCK_TRANSACTION_OPTIONS } from '../config/prisma.client.js';
+import bcrypt from 'bcryptjs';
 import { Prisma, UserRole } from '@prisma/client';
 import { SecurityIncidentException, logSecurityIncident, logAuditEvent } from '../utils/auditLogger.js';
 
@@ -158,10 +159,11 @@ export async function validateGeneralAdminConfiguration(
         throw err;
       }
     } else if (options.requiredOperation === 'ASSIGN_RESPONSIBILITY') {
-      const isSuperAdmin = options.operatorRole === UserRole.SUPER_ADMIN;
       const isGeneralAdmin = options.operatorId === systemSetting.generalAdminUserId;
-      if (!isSuperAdmin && !isGeneralAdmin) {
-        const err: any = new Error('የአስተዳዳሪዎችን ኃላፊነት ለመመደብ የሚያስችል ፈቃድ የለዎትም።');
+      if (!isGeneralAdmin) {
+        const err: any = new Error(
+          'የአስተዳዳሪዎችን ኃላፊነት ለመመደብ የሚያስችል ፈቃድ የለዎትም። ይህ የዋና አስተዳዳሪው (General Admin) ብቸኛ ስልጣን ነው።'
+        );
         err.statusCode = 403;
         err.code = 'FORBIDDEN';
         throw err;
@@ -186,6 +188,123 @@ export async function validateGeneralAdminConfiguration(
 }
 
 export class SystemSettingService {
+  /**
+   * Register and appoint General Admin (Super Admin only).
+   */
+  async registerAndAppointGeneralAdmin(
+    operator: { id: string; role: UserRole; username: string },
+    input: {
+      username: string;
+      firstName: string;
+      lastName: string;
+      grandfatherName?: string;
+      phone?: string;
+      email?: string;
+      password?: string;
+    },
+    ipAddress?: string | null,
+    userAgent?: string | null
+  ) {
+    if (operator.role !== UserRole.SUPER_ADMIN) {
+      const err: any = new Error('ዋና አስተዳዳሪን የመመዝገብ እና የመሾም ስልጣን የበላይ አስተዳዳሪ (Super Admin) ብቻ ነው።');
+      err.statusCode = 403;
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // 1. Lock SYSTEM_DEFAULT
+        const config = await validateGeneralAdminConfiguration(tx, {
+          allowNullAppointment: true,
+          operatorId: operator.id,
+          operatorRole: operator.role,
+        });
+
+        if (config.systemSetting.generalAdminUserId) {
+          const err: any = new Error(
+            'ዋና አስተዳዳሪ አስቀድሞ ተሹሟል፤ እባክዎ ማስተላለፍን (Transfer) ወይም መሻርን (Revoke) ይጠቀሙ።'
+          );
+          err.statusCode = 409;
+          err.code = 'GENERAL_ADMIN_ALREADY_EXISTS';
+          throw err;
+        }
+
+        // 2. Validate uniqueness
+        const existing = await tx.user.findFirst({
+          where: {
+            OR: [
+              { username: input.username.trim() },
+              ...(input.email ? [{ email: input.email.trim().toLowerCase() }] : []),
+              ...(input.phone ? [{ phone: input.phone.trim() }] : []),
+            ],
+          },
+        });
+
+        if (existing) {
+          const err: any = new Error('በዚህ የተጠቃሚ ስም፣ ኢሜይል ወይም ስልክ የተመዘገበ አካውንት አስቀድሞ አለ።');
+          err.statusCode = 400;
+          err.code = 'USERNAME_OR_EMAIL_TAKEN';
+          throw err;
+        }
+
+        // 3. Create user as ADMIN without subordinate responsibilities
+        const rawPassword = input.password || 'Temporary@2026';
+        const passwordHash = await bcrypt.hash(rawPassword, 12);
+
+        const user = await tx.user.create({
+          data: {
+            username: input.username.trim(),
+            email: input.email ? input.email.trim().toLowerCase() : null,
+            passwordHash,
+            role: UserRole.ADMIN,
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            grandfatherName: input.grandfatherName ? input.grandfatherName.trim() : null,
+            phone: input.phone ? input.phone.trim() : null,
+            isActive: true,
+            isDeleted: false,
+            adminResponsibilities: [],
+          },
+        });
+
+        // 4. Appoint as General Admin in SYSTEM_DEFAULT
+        await tx.systemSetting.update({
+          where: { id: 'SYSTEM_DEFAULT' },
+          data: { generalAdminUserId: user.id },
+        });
+
+        // 5. Audit log
+        await logAuditEvent(
+          {
+            userId: operator.id,
+            action: 'GENERAL_ADMIN_APPOINTED',
+            entityName: 'SystemSetting',
+            entityId: 'SYSTEM_DEFAULT',
+            details: {
+              appointedUserId: user.id,
+              appointedUsername: user.username,
+              method: 'REGISTER_AND_APPOINT',
+            },
+            ipAddress,
+            userAgent,
+          },
+          tx
+        );
+
+        return {
+          message: `ተጠቃሚ '${user.username}' በዋና አስተዳዳሪነት (General Admin) ተመዝግቦ በተሳካ ሁኔታ ተሹሟል።`,
+          user,
+        };
+      }, LOCK_TRANSACTION_OPTIONS);
+    } catch (error: any) {
+      if (error instanceof SecurityIncidentException) {
+        await logSecurityIncident(error);
+      }
+      throw error;
+    }
+  }
+
   /**
    * Appoint General Admin (Super Admin only).
    */

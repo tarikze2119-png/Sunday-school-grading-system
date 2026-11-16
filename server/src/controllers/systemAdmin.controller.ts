@@ -2,6 +2,27 @@ import { Request, Response, NextFunction } from 'express';
 import systemSettingService from '../services/systemSetting.service.js';
 
 export class SystemAdminController {
+  async registerGeneralAdmin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      const result = await systemSettingService.registerAndAppointGeneralAdmin(
+        { id: req.user!.id, role: req.user!.role, username: req.user!.username },
+        req.body,
+        ipAddress,
+        userAgent
+      );
+
+      res.status(201).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async appointGeneralAdmin(req: Request, res: Response, next: NextFunction) {
     try {
       const { targetUserId } = req.body;

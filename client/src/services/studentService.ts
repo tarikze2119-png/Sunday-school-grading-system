@@ -53,6 +53,21 @@ export const studentService = {
     return res.data;
   },
 
+  getById: async (id: string) => {
+    const res = await api.get<{ success: boolean; data: StudentListItem }>(`/students/${id}`);
+    return res.data.data;
+  },
+
+  update: async (id: string, data: any) => {
+    const res = await api.put<{ success: boolean; message: string; data: StudentListItem }>(`/students/${id}`, data);
+    return res.data;
+  },
+
+  toggleStatus: async (id: string, isActive: boolean) => {
+    const res = await api.patch<{ success: boolean; message: string; data: { isActive: boolean } }>(`/students/${id}/status`, { isActive });
+    return res.data;
+  },
+
   promote: async (studentId: string, newAcademicYearId: string, newBatchId: string) => {
     const res = await api.post<{ success: boolean; message: string }>(`/students/${studentId}/promote`, {
       newAcademicYearId,

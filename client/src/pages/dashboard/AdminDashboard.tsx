@@ -40,7 +40,7 @@ import {
 
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
-  const isGeneralAdmin = Boolean(user?.isGeneralAdmin || user?.role === 'SUPER_ADMIN');
+  const isGeneralAdmin = Boolean(user?.role === 'ADMIN' && user?.isGeneralAdmin);
   const responsibilities = user?.adminResponsibilities || [];
 
   const [activeModule, setActiveModule] = useState<

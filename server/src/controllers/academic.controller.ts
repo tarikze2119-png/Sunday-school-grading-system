@@ -43,6 +43,32 @@ export class AcademicController {
     }
   }
 
+  async updateYear(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await academicService.updateAcademicYear(req.params.id, req.body, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: `የትምህርት ዘመን '${updated.name}' መረጃ በተሳካ ሁኔታ ተሻሽሏል።`,
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async closeYear(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await academicService.closeAcademicYear(req.params.id, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updateYearStatus(req: Request, res: Response, next: NextFunction) {
     try {
       const updated = await academicService.updateAcademicYearStatus(
@@ -75,6 +101,15 @@ export class AcademicController {
       const { academicYearId } = req.query;
       const batches = await academicService.listBatches(academicYearId as string);
       res.status(200).json({ success: true, data: batches });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getBatchDetails(req: Request, res: Response, next: NextFunction) {
+    try {
+      const batch = await academicService.getBatchDetails(req.params.id);
+      res.status(200).json({ success: true, data: batch });
     } catch (error) {
       next(error);
     }

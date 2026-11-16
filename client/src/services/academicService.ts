@@ -44,6 +44,14 @@ export const academicService = {
     const res = await api.post<{ success: boolean; message: string; data: AcademicYearData }>('/academic/years', data);
     return res.data;
   },
+  updateYear: async (id: string, data: Partial<AcademicYearData>) => {
+    const res = await api.put<{ success: boolean; message: string; data: AcademicYearData }>(`/academic/years/${id}`, data);
+    return res.data;
+  },
+  closeYear: async (id: string) => {
+    const res = await api.patch<{ success: boolean; message: string; data: AcademicYearData }>(`/academic/years/${id}/close`);
+    return res.data;
+  },
   setCurrentYear: async (id: string) => {
     const res = await api.patch<{ success: boolean; message: string }>(`/academic/years/${id}/set-current`);
     return res.data;
@@ -66,6 +74,14 @@ export const academicService = {
   createBatch: async (data: { academicYearId: string; name: string; code: string; stageLevel: string; description?: string }) => {
     const res = await api.post<{ success: boolean; message: string; data: BatchData }>('/academic/batches', data);
     return res.data;
+  },
+  updateBatch: async (id: string, data: Partial<BatchData>) => {
+    const res = await api.put<{ success: boolean; message: string; data: BatchData }>(`/academic/batches/${id}`, data);
+    return res.data;
+  },
+  getBatchStudents: async (batchId: string) => {
+    const res = await api.get<{ success: boolean; data: any }>(`/academic/batches/${batchId}/students`);
+    return res.data.data;
   },
   toggleBatch: async (id: string, isActive: boolean) => {
     const res = await api.patch<{ success: boolean; message: string }>(`/academic/batches/${id}/toggle-status`, { isActive });

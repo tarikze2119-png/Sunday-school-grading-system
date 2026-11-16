@@ -12,6 +12,8 @@ router.use(authenticateJwt);
 router.get('/years', (req, res, next) => academicController.listYears(req, res, next));
 router.get('/years/:id', (req, res, next) => academicController.getYearById(req, res, next));
 router.get('/batches', (req, res, next) => academicController.listBatches(req, res, next));
+router.get('/batches/:id/details', (req, res, next) => academicController.getBatchDetails(req, res, next));
+router.get('/batches/:id/students', (req, res, next) => academicController.getBatchDetails(req, res, next));
 
 // Mutations: Guarded by SUPER_ADMIN and ADMIN with COURSE_TEACHER_ADMIN
 router.post(
@@ -19,6 +21,20 @@ router.post(
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
   requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => academicController.createYear(req, res, next)
+);
+
+router.put(
+  '/years/:id',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
+  (req, res, next) => academicController.updateYear(req, res, next)
+);
+
+router.patch(
+  '/years/:id/close',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
+  (req, res, next) => academicController.closeYear(req, res, next)
 );
 
 router.patch(

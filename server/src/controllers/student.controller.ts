@@ -87,6 +87,48 @@ export class StudentController {
       next(error);
     }
   }
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      let { id } = req.params;
+      if (id === 'me') {
+        id = req.user?.studentId || req.user?.id || '';
+      }
+      const student = await studentService.getStudentById(id);
+      res.status(200).json({ success: true, data: student });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const updated = await studentService.updateStudentProfile(id, req.body, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: `የተማሪ '${updated.user.firstName} ${updated.user.lastName}' መረጃ በተሳካ ሁኔታ ተሻሽሏል።`,
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async toggleStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      const result = await studentService.toggleStudentStatus(id, isActive === true, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: { isActive: result.isActive },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const studentController = new StudentController();

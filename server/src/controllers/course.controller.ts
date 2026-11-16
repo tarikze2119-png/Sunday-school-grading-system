@@ -39,6 +39,23 @@ export class CourseController {
     }
   }
 
+  async toggleCourseStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await courseService.toggleCourseStatus(
+        req.params.id,
+        Boolean(req.body.isActive),
+        req.user!.id
+      );
+      res.status(200).json({
+        success: true,
+        message: updated.isActive ? 'ኮርሱ ነቅቷል (Activated)' : 'ኮርሱ እንዲቦዝን ተደርጓል (Deactivated)',
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // OFFERINGS
   async listOfferings(req: Request, res: Response, next: NextFunction) {
     try {
@@ -69,6 +86,36 @@ export class CourseController {
       res.status(201).json({
         success: true,
         message: `የኮርስ ምደባ ለ '${offering.course.amharicTitle}' በተሳካ ሁኔታ ተፈጥሯል።`,
+        data: offering,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateOffering(req: Request, res: Response, next: NextFunction) {
+    try {
+      const offering = await courseService.updateCourseOffering(req.params.id, req.body, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: `የኮርስ ምደባ መረጃ ተሻሽሏል።`,
+        data: offering,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async toggleOfferingStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const offering = await courseService.toggleOfferingStatus(
+        req.params.id,
+        req.body.status,
+        req.user!.id
+      );
+      res.status(200).json({
+        success: true,
+        message: `የኮርስ ምደባ ሁኔታ ተቀይሯል።`,
         data: offering,
       });
     } catch (error) {

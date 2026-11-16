@@ -48,6 +48,21 @@ export const teacherService = {
     return res.data;
   },
 
+  getById: async (id: string) => {
+    const res = await api.get<{ success: boolean; data: TeacherListItem }>(`/teachers/${id}`);
+    return res.data.data;
+  },
+
+  update: async (id: string, data: any) => {
+    const res = await api.put<{ success: boolean; message: string; data: TeacherListItem }>(`/teachers/${id}`, data);
+    return res.data;
+  },
+
+  toggleStatus: async (id: string, isActive: boolean) => {
+    const res = await api.patch<{ success: boolean; message: string; data: { isActive: boolean } }>(`/teachers/${id}/status`, { isActive });
+    return res.data;
+  },
+
   getAssignments: async (teacherId: string) => {
     const res = await api.get<{ success: boolean; data: any[] }>(`/teachers/${teacherId}/assignments`);
     return res.data.data;

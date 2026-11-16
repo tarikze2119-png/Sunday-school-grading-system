@@ -15,6 +15,13 @@ router.get(
   (req, res, next) => systemAdminController.getStatus(req, res, next)
 );
 
+// Register and Appoint General Admin (Super Admin only)
+router.post(
+  '/general-admin/register',
+  authorizeRole([UserRole.SUPER_ADMIN]),
+  (req, res, next) => systemAdminController.registerGeneralAdmin(req, res, next)
+);
+
 // Appoint General Admin (Super Admin only)
 router.post(
   '/general-admin/appoint',

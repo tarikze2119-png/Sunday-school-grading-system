@@ -156,35 +156,45 @@ export class UserService {
     userAgent?: string
   ) {
     // 1. RBAC Hierarchy Enforcement
-    if (operator.role === UserRole.ADMIN) {
-      // Check if operator is the General Admin
-      const setting = await prisma.systemSetting.findUnique({
-        where: { id: 'SYSTEM_DEFAULT' },
-        select: { generalAdminUserId: true },
-      });
-      const isGeneralAdmin = setting?.generalAdminUserId === operator.id;
-
-      if (input.role === UserRole.SUPER_ADMIN) {
+    if (input.role === UserRole.SUPER_ADMIN) {
+      if (operator.role !== UserRole.SUPER_ADMIN) {
         const error: any = new Error('አስተዳዳሪ (Admin) የዋና የበላይ አስተዳዳሪ (Super Admin) አካውንት የመፍጠር ፈቃድ የለውም።');
         error.statusCode = 403;
         error.code = 'FORBIDDEN';
         throw error;
       }
+    }
 
-      if (input.role === UserRole.ADMIN && !isGeneralAdmin) {
-        const error: any = new Error('ተራ አስተዳዳሪ ሌላ አስተዳዳሪን የመመዝገብ ፈቃድ የለውም፤ ይህ የዋና አስተዳዳሪ (General Admin) ወይም Super Admin ስልጣን ነው።');
+    if (input.role === UserRole.ADMIN) {
+      // ONLY the currently appointed General Admin can create subordinate Admin accounts
+      const setting = await prisma.systemSetting.findUnique({
+        where: { id: 'SYSTEM_DEFAULT' },
+        select: { generalAdminUserId: true },
+      });
+      const isGeneralAdmin = operator.role === UserRole.ADMIN && setting?.generalAdminUserId === operator.id;
+
+      if (!isGeneralAdmin) {
+        const error: any = new Error(
+          operator.role === UserRole.SUPER_ADMIN
+            ? 'የበላይ አስተዳዳሪ (Super Admin) ረዳት አስተዳዳሪዎችን የመመዝገብ ፈቃድ የለውም። ይህ የዋና አስተዳዳሪው (General Admin) ብቸኛ ስልጣን ነው።'
+            : 'ተራ አስተዳዳሪ ሌላ አስተዳዳሪን የመመዝገብ ፈቃድ የለውም፤ ይህ የዋና አስተዳዳሪ (General Admin) ብቸኛ ስልጣን ነው።'
+        );
         error.statusCode = 403;
         error.code = 'FORBIDDEN';
         throw error;
       }
+    }
 
-      if (input.role === UserRole.MANAGEMENT) {
-        const error: any = new Error('አስተዳዳሪ (Admin) የአመራር (Management) አካውንት የመፍጠር ፈቃድ የለውም።');
+    if (input.role === UserRole.MANAGEMENT) {
+      if (operator.role !== UserRole.SUPER_ADMIN) {
+        const error: any = new Error('አስተዳዳሪ (Admin) የአመራር (Management) አካውንት የመፍጠር ፈቃድ የለውም። ይህ የበላይ አስተዳዳሪ (Super Admin) ስልጣን ነው።');
         error.statusCode = 403;
         error.code = 'FORBIDDEN';
         throw error;
       }
-    } else if (operator.role !== UserRole.SUPER_ADMIN) {
+    }
+
+    if (operator.role !== UserRole.SUPER_ADMIN && operator.role !== UserRole.ADMIN) {
       const error: any = new Error('አካውንት የመፍጠር ፈቃድ የለዎትም።');
       error.statusCode = 403;
       error.code = 'FORBIDDEN';
@@ -714,19 +724,22 @@ export class UserService {
           Prisma.sql`SELECT id, "generalAdminUserId" FROM system_settings WHERE id = 'SYSTEM_DEFAULT' FOR UPDATE`
         )) as Array<{ id: string; generalAdminUserId: string | null }>;
 
-        const isSuperAdmin = operator.role === UserRole.SUPER_ADMIN;
         const currentGaId = settings && settings.length > 0 ? settings[0].generalAdminUserId : null;
-        const isGeneralAdmin = currentGaId === operator.id;
+        const isGeneralAdmin = operator.role === UserRole.ADMIN && currentGaId === operator.id;
 
-        if (!isSuperAdmin && !isGeneralAdmin) {
-          const error: any = new Error('የአስተዳዳሪ ኃላፊነቶችን የመመደብ ፈቃድ የለዎትም። ይህ የSuper Admin ወይም የዋና አስተዳዳሪ (General Admin) ስልጣን ነው።');
+        if (!isGeneralAdmin) {
+          const error: any = new Error(
+            operator.role === UserRole.SUPER_ADMIN
+              ? 'የበላይ አስተዳዳሪ (Super Admin) የረዳት አስተዳዳሪዎችን ኃላፊነት የመመደብ ፈቃድ የለውም። ይህ የዋና አስተዳዳሪው (General Admin) ብቸኛ ስልጣን ነው።'
+              : 'የአስተዳዳሪ ኃላፊነቶችን የመመደብ ፈቃድ የለዎትም። ይህ የዋና አስተዳዳሪው (General Admin) ብቸኛ ስልጣን ነው።'
+          );
           error.statusCode = 403;
           error.code = 'FORBIDDEN';
           throw error;
         }
 
         // General Admin cannot update their own responsibilities (only Super Admin manages General Admin)
-        if (!isSuperAdmin && targetUserId === currentGaId) {
+        if (targetUserId === currentGaId) {
           const error: any = new Error('ዋና አስተዳዳሪ (General Admin) የራሱን ኃላፊነቶች መለወጥ አይችልም፤ ይህ የበላይ አስተዳዳሪ (Super Admin) ስልጣን ነው።');
           error.statusCode = 403;
           error.code = 'FORBIDDEN';

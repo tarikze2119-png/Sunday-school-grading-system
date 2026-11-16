@@ -38,6 +38,45 @@ export class TeacherController {
       next(error);
     }
   }
+
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const teacher = await teacherService.getTeacherById(id);
+      res.status(200).json({ success: true, data: teacher });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const updated = await teacherService.updateTeacherProfile(id, req.body, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: `የመምህር '${updated.user.firstName} ${updated.user.lastName}' መረጃ በተሳካ ሁኔታ ተሻሽሏል።`,
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async toggleStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      const result = await teacherService.toggleTeacherStatus(id, isActive === true, req.user!.id);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: { isActive: result.isActive },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const teacherController = new TeacherController();

@@ -23,6 +23,13 @@ router.put(
   (req, res, next) => courseController.updateCourse(req, res, next)
 );
 
+router.patch(
+  '/:id/status',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
+  (req, res, next) => courseController.toggleCourseStatus(req, res, next)
+);
+
 // Course Offerings routes
 router.get('/offerings/list', (req, res, next) => courseController.listOfferings(req, res, next));
 router.get('/offerings/:id', (req, res, next) => courseController.getOfferingById(req, res, next));
@@ -31,6 +38,20 @@ router.post(
   authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
   requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
   (req, res, next) => courseController.createOffering(req, res, next)
+);
+
+router.put(
+  '/offerings/:id',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
+  (req, res, next) => courseController.updateOffering(req, res, next)
+);
+
+router.patch(
+  '/offerings/:id/status',
+  authorizeRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
+  requireResponsibility(AdminResponsibility.COURSE_TEACHER_ADMIN),
+  (req, res, next) => courseController.toggleOfferingStatus(req, res, next)
 );
 
 // Teacher assignment to offering

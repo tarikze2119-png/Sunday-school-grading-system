@@ -26,12 +26,16 @@ import {
 
 export const SuperAdminDashboard: React.FC = () => {
   const [activeNav, setActiveNav] = useState<
-    'dashboard' | 'admins' | 'management' | 'users' | 'audit' | 'settings'
+    'dashboard' | 'general-admin' | 'management' | 'users' | 'audit' | 'settings'
   >('dashboard');
 
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [generalAdminData, setGeneralAdminData] = useState<{
+    isConfigured: boolean;
+    generalAdmin: any | null;
+  }>({ isConfigured: false, generalAdmin: null });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,9 +43,8 @@ export const SuperAdminDashboard: React.FC = () => {
   const [auditActionFilter, setAuditActionFilter] = useState<string>('ALL');
   const [alertMsg, setAlertMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // New Account Modal Form State
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createRole, setCreateRole] = useState<'ADMIN' | 'MANAGEMENT'>('ADMIN');
+  // New Management Account Modal Form State (Super Admin registers Management)
+  const [isCreateManagementModalOpen, setIsCreateManagementModalOpen] = useState(false);
   const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -50,13 +53,23 @@ export const SuperAdminDashboard: React.FC = () => {
   const [department, setDepartment] = useState('የትምህርት ክፍል');
   const [positionTitle, setPositionTitle] = useState('የትምህርት ክፍል ኃላፊ');
 
+  // Register General Admin Modal State (Super Admin registers and appoints General Admin)
+  const [isRegisterGAModalOpen, setIsRegisterGAModalOpen] = useState(false);
+  const [gaUsername, setGaUsername] = useState('');
+  const [gaFirstName, setGaFirstName] = useState('');
+  const [gaLastName, setGaLastName] = useState('');
+  const [gaGrandfatherName, setGaGrandfatherName] = useState('');
+  const [gaPhone, setGaPhone] = useState('');
+  const [gaEmail, setGaEmail] = useState('');
+  const [gaPassword, setGaPassword] = useState('');
+
+  // Appoint / Transfer Existing Admin Modal State
+  const [isAppointExistingModalOpen, setIsAppointExistingModalOpen] = useState(false);
+  const [selectedTargetAdminId, setSelectedTargetAdminId] = useState('');
+
   // Password Reset Modal State
   const [resettingUser, setResettingUser] = useState<any | null>(null);
   const [newPassword, setNewPassword] = useState('');
-
-  // Admin Responsibilities Modal State
-  const [editingResponsibilitiesUser, setEditingResponsibilitiesUser] = useState<any | null>(null);
-  const [selectedResponsibilities, setSelectedResponsibilities] = useState<string[]>([]);
 
   const fetchUsers = async () => {
     try {
@@ -67,6 +80,15 @@ export const SuperAdminDashboard: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchGeneralAdminStatus = async () => {
+    try {
+      const res = await api.get('/system-admin/general-admin/status');
+      setGeneralAdminData(res.data.data);
+    } catch (err: any) {
+      console.error(err);
     }
   };
 
@@ -90,6 +112,7 @@ export const SuperAdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchGeneralAdminStatus();
     fetchAuditLogs();
     fetchAcademicYears();
   }, []);
@@ -101,6 +124,9 @@ export const SuperAdminDashboard: React.FC = () => {
   const totalTeachers = users.filter((u) => u.role === 'TEACHER').length;
   const totalStudents = users.filter((u) => u.role === 'STUDENT').length;
   const activeYearsCount = academicYears.filter((y) => y.status === 'ACTIVE' || y.isCurrent).length;
+  const eligibleAdmins = users.filter(
+    (u) => u.role === 'ADMIN' && u.isActive && !u.isDeleted && !u.isGeneralAdmin
+  );
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean, usernameVal: string) => {
     const actionLabel = currentStatus ? 'ማገድ' : 'ማንቃት';
@@ -122,7 +148,7 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  const handleCreateManagementAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setActionLoading(true);
@@ -132,16 +158,16 @@ export const SuperAdminDashboard: React.FC = () => {
         username: username.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        role: createRole,
+        role: 'MANAGEMENT',
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
-        department: createRole === 'MANAGEMENT' ? department.trim() : undefined,
-        positionTitle: createRole === 'MANAGEMENT' ? positionTitle.trim() : undefined,
+        department: department.trim(),
+        positionTitle: positionTitle.trim(),
       });
 
       setAlertMsg({
         type: 'success',
-        text: `አዲስ የ${createRole === 'ADMIN' ? 'አስተዳዳሪ' : 'አመራር'} አካውንት '${username}' በተሳካ ሁኔታ ተፈጥሯል!`,
+        text: `አዲስ የአመራር አካውንት '${username}' በተሳካ ሁኔታ ተፈጥሯል!`,
       });
       setTimeout(() => setAlertMsg(null), 3500);
 
@@ -150,12 +176,89 @@ export const SuperAdminDashboard: React.FC = () => {
       setLastName('');
       setPhone('');
       setEmail('');
-      setIsCreateModalOpen(false);
+      setIsCreateManagementModalOpen(false);
 
       await fetchUsers();
       await fetchAuditLogs();
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'አካውንት መፍጠር አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRegisterGeneralAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setActionLoading(true);
+      setAlertMsg(null);
+
+      const res = await api.post('/system-admin/general-admin/register', {
+        username: gaUsername.trim(),
+        firstName: gaFirstName.trim(),
+        lastName: gaLastName.trim(),
+        grandfatherName: gaGrandfatherName.trim() || undefined,
+        phone: gaPhone.trim() || undefined,
+        email: gaEmail.trim() || undefined,
+        password: gaPassword.trim() || undefined,
+      });
+
+      setAlertMsg({
+        type: 'success',
+        text: res.data?.message || 'አዲስ ዋና አስተዳዳሪ ተመዝግቦ በተሳካ ሁኔታ ተሹሟል!',
+      });
+      setTimeout(() => setAlertMsg(null), 3500);
+
+      setGaUsername('');
+      setGaFirstName('');
+      setGaLastName('');
+      setGaGrandfatherName('');
+      setGaPhone('');
+      setGaEmail('');
+      setGaPassword('');
+      setIsRegisterGAModalOpen(false);
+
+      await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ዋና አስተዳዳሪ መመዝገብ አልተቻለም።' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTransferOrAppointExistingAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTargetAdminId) return;
+
+    try {
+      setActionLoading(true);
+      setAlertMsg(null);
+
+      const endpoint = generalAdminData.isConfigured
+        ? '/system-admin/general-admin/transfer'
+        : '/system-admin/general-admin/appoint';
+
+      const payload = generalAdminData.isConfigured
+        ? { newTargetUserId: selectedTargetAdminId }
+        : { targetUserId: selectedTargetAdminId };
+
+      const res = await api.post(endpoint, payload);
+      setAlertMsg({
+        type: 'success',
+        text: res.data?.message || 'ዋና አስተዳዳሪ በተሳካ ሁኔታ ተሹሟል/ተላልፏል!',
+      });
+      setTimeout(() => setAlertMsg(null), 3500);
+
+      setIsAppointExistingModalOpen(false);
+      setSelectedTargetAdminId('');
+
+      await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ሹመት ማስተላለፍ/መሾም አልተቻለም።' });
     } finally {
       setActionLoading(false);
     }
@@ -193,6 +296,8 @@ export const SuperAdminDashboard: React.FC = () => {
       setAlertMsg({ type: 'success', text: res.data.message || 'ዋና አስተዳዳሪ በተሳካ ሁኔታ ተሹሟል።' });
       setTimeout(() => setAlertMsg(null), 3500);
       await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ዋና አስተዳዳሪ መሾም አልተቻለም።' });
     } finally {
@@ -200,14 +305,17 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
-  const handleRevokeGeneralAdmin = async (targetUsername: string) => {
-    if (!window.confirm(`የተጠቃሚ '${targetUsername}'ን የዋና አስተዳዳሪነት ሹመት ለመሻር እርግጠኛ ነዎት?`)) return;
+  const handleRevokeGeneralAdmin = async (targetUsername?: string) => {
+    const name = targetUsername || generalAdminData.generalAdmin?.username || '';
+    if (!window.confirm(`የተጠቃሚ '${name}'ን የዋና አስተዳዳሪነት ሹመት ለመሻር እርግጠኛ ነዎት?`)) return;
     try {
       setActionLoading(true);
       const res = await api.post('/system-admin/general-admin/revoke', {});
       setAlertMsg({ type: 'success', text: res.data.message || 'የዋና አስተዳዳሪነት ሹመት ተሽሯል።' });
       setTimeout(() => setAlertMsg(null), 3500);
       await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'የዋና አስተዳዳሪነት ሹመት መሻር አልተቻለም።' });
     } finally {
@@ -223,6 +331,8 @@ export const SuperAdminDashboard: React.FC = () => {
       setAlertMsg({ type: 'success', text: res.data.message || 'ተጠቃሚው በተሳካ ሁኔታ ተሰርዟል።' });
       setTimeout(() => setAlertMsg(null), 3500);
       await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ተጠቃሚውን መሰረዝ አልተቻለም።' });
     } finally {
@@ -238,27 +348,10 @@ export const SuperAdminDashboard: React.FC = () => {
       setAlertMsg({ type: 'success', text: res.data.message || 'ተጠቃሚው በተሳካ ሁኔታ ተመልሷል።' });
       setTimeout(() => setAlertMsg(null), 3500);
       await fetchUsers();
+      await fetchGeneralAdminStatus();
+      await fetchAuditLogs();
     } catch (err: any) {
       setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ተጠቃሚውን መመለስ አልተቻለም።' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSaveResponsibilities = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingResponsibilitiesUser) return;
-    try {
-      setActionLoading(true);
-      const res = await api.patch(`/users/${editingResponsibilitiesUser.id}/responsibilities`, {
-        responsibilities: selectedResponsibilities,
-      });
-      setAlertMsg({ type: 'success', text: res.data.message || 'ኃላፊነቶች በተሳካ ሁኔታ ተመድበዋል።' });
-      setTimeout(() => setAlertMsg(null), 3500);
-      setEditingResponsibilitiesUser(null);
-      await fetchUsers();
-    } catch (err: any) {
-      setAlertMsg({ type: 'error', text: err.response?.data?.message || 'ኃላፊነቶችን መመደብ አልተቻለም።' });
     } finally {
       setActionLoading(false);
     }
@@ -271,7 +364,6 @@ export const SuperAdminDashboard: React.FC = () => {
       u.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.phone && u.phone.includes(searchTerm));
 
-    if (activeNav === 'admins') return u.role === 'ADMIN' && matchesSearch;
     if (activeNav === 'management') return u.role === 'MANAGEMENT' && matchesSearch;
     if (roleFilter !== 'ALL') return u.role === roleFilter && matchesSearch;
     return matchesSearch;
@@ -296,7 +388,12 @@ export const SuperAdminDashboard: React.FC = () => {
 
   const navTabs = [
     { key: 'dashboard', label: 'ዳሽቦርድ', icon: Layers },
-    { key: 'admins', label: 'አስተዳዳሪዎች', icon: ShieldCheck, count: totalAdmins },
+    {
+      key: 'general-admin',
+      label: 'ዋና አስተዳዳሪ (General Admin)',
+      icon: ShieldCheck,
+      count: generalAdminData.generalAdmin ? 1 : 0,
+    },
     { key: 'management', label: 'ማኔጅመንት', icon: Award, count: totalManagement },
     { key: 'users', label: 'የተጠቃሚ አስተዳደር', icon: Users, count: totalUsers },
     { key: 'audit', label: 'የእንቅስቃሴ መዝገብ', icon: Activity },
@@ -309,24 +406,30 @@ export const SuperAdminDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-slate-950 text-white rounded-2xl p-6 shadow-md border border-purple-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full border border-purple-400/30">
-            ዋና አስተዳዳሪ ማዕከል
+            ደረጃ 1 • የበላይ አስተዳዳሪ ማዕከል
           </span>
           <h1 className="text-xl sm:text-2xl font-black mt-2">የስርዓት የበላይ ቁጥጥር እና የተጠቃሚዎች ማዕከል</h1>
           <p className="text-xs text-purple-200 mt-1">
-            አዳዲስ አስተዳዳሪዎችን እና የአመራር አካላትን ይመዝግቡ፤ የተጠቃሚዎችን ሁኔታ ያስተዳድሩ፤ የደህንነት እንቅስቃሴዎችን ይቆጣጠሩ።
+            ዋና አስተዳዳሪን (General Admin) እና የአመራር አካላትን ይመዝግቡ፤ የተጠቃሚዎችን ሁኔታ ያስተዳድሩ፤ የደህንነት እንቅስቃሴዎችን ይቆጣጠሩ።
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="primary"
             size="sm"
-            onClick={() => {
-              setCreateRole('ADMIN');
-              setIsCreateModalOpen(true);
-            }}
+            onClick={() => setIsRegisterGAModalOpen(true)}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border border-amber-400"
           >
-            <UserPlus className="w-4 h-4 mr-1.5" /> አዲስ አስተዳዳሪ መዝግብ
+            <ShieldCheck className="w-4 h-4 mr-1.5" /> አዲስ ዋና አስተዳዳሪ መዝግብ
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsCreateManagementModalOpen(true)}
+            className="bg-white/10 hover:bg-white/20 text-white border border-white/20"
+          >
+            <UserPlus className="w-4 h-4 mr-1.5" /> አዲስ ማኔጅመንት መዝግብ
           </Button>
         </div>
       </div>
@@ -476,9 +579,135 @@ export const SuperAdminDashboard: React.FC = () => {
       )}
 
       {/* ========================================================= */}
-      {/* TAB 2, 3, 4: USER LISTS (Admins, Management, All Users)   */}
+      {/* TAB 2: GENERAL ADMIN APPOINTMENT & MANAGEMENT             */}
       {/* ========================================================= */}
-      {(activeNav === 'admins' || activeNav === 'management' || activeNav === 'users') && (
+      {activeNav === 'general-admin' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                  ደረጃ 1 አስተዳደር • የበላይ ቁጥጥር
+                </span>
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-2">
+                  የትምህርት ክፍል ዋና አስተዳዳሪ (General Admin) ሹመት እና ቁጥጥር
+                </h2>
+                <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+                  በሲስተሙ ደንብ መሰረት በየትኛውም ወቅት <strong>አንድ ንቁ ዋና አስተዳዳሪ</strong> ብቻ ይኖራል። ዋና አስተዳዳሪው 
+                  የክፍሉን ረዳት አስተዳዳሪዎች የመመዝገብ፣ ኃላፊነት የመስጠት እና የውጤት ይፋ የማድረግ ብቸኛ ስልጣን አለው።
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsRegisterGAModalOpen(true)}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border border-amber-400"
+                >
+                  <UserPlus className="w-4 h-4 mr-1.5" /> አዲስ ዋና አስተዳዳሪ መዝግብ
+                </Button>
+                {eligibleAdmins.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setIsAppointExistingModalOpen(true)}
+                  >
+                    <ShieldCheck className="w-4 h-4 mr-1.5" />
+                    {generalAdminData.isConfigured ? 'በሌላ አስተዳዳሪ ተካ' : 'ካሉት አስተዳዳሪዎች ሹም'}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Current General Admin Card */}
+            {generalAdminData.isConfigured && generalAdminData.generalAdmin ? (
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-slate-50 border border-amber-200 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="p-3 rounded-2xl bg-amber-100 text-amber-800 shadow-sm">
+                      <ShieldCheck className="w-7 h-7" />
+                    </span>
+                    <div>
+                      <div className="text-xs font-black text-amber-900">በአሁኑ ሰዓት የተሾሙ ዋና አስተዳዳሪ፦</div>
+                      <div className="text-lg font-black text-slate-900">
+                        {generalAdminData.generalAdmin.firstName} {generalAdminData.generalAdmin.lastName}{' '}
+                        <span className="font-mono text-xs text-slate-600 font-bold">
+                          (@{generalAdminData.generalAdmin.username})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {generalAdminData.generalAdmin.isActive ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        ንቁ (Active)
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                        የታገደ (Suspended)
+                      </span>
+                    )}
+
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleRevokeGeneralAdmin(generalAdminData.generalAdmin.username)}
+                      loading={actionLoading}
+                    >
+                      ሹመት ሽር (Revoke)
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-xs border-t border-amber-200/60">
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px]">ስልክ ቁጥር</span>
+                    <span className="font-bold text-slate-800">{generalAdminData.generalAdmin.phone || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px]">ኢሜይል</span>
+                    <span className="font-bold text-slate-800">{generalAdminData.generalAdmin.email || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px]">የስልጣን ወሰን</span>
+                    <span className="font-bold text-amber-900">የ4ቱም ዘርፎች የበላይ አስተባባሪ & የውጤት አጽዳቂ</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 rounded-2xl bg-red-50 border border-red-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-red-100 text-red-700 shrink-0">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-red-900">የተሾመ ዋና አስተዳዳሪ (General Admin) የለም!</h4>
+                    <p className="text-xs text-red-700 mt-0.5">
+                      ዋና አስተዳዳሪ ካልተሾመ ረዳት አስተዳዳሪዎችን ማስተዳደር እና የውጤት ማጽደቅ ተግባራት ይታገዳሉ።
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsRegisterGAModalOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold shrink-0"
+                >
+                  <UserPlus className="w-4 h-4 mr-1.5" /> አሁን ዋና አስተዳዳሪ ሹም
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 3 & 4: USER LISTS (Management, All Users)              */}
+      {/* ========================================================= */}
+      {(activeNav === 'management' || activeNav === 'users') && (
         <div className="space-y-4">
           {/* Action Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -510,17 +739,16 @@ export const SuperAdminDashboard: React.FC = () => {
               )}
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setCreateRole(activeNav === 'management' ? 'MANAGEMENT' : 'ADMIN');
-                setIsCreateModalOpen(true);
-              }}
-            >
-              <UserPlus className="w-4 h-4 mr-1.5" />
-              {activeNav === 'management' ? 'አዲስ የአመራር አባል መዝግብ' : 'አዲስ አስተዳዳሪ መዝግብ'}
-            </Button>
+            {activeNav === 'management' && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsCreateManagementModalOpen(true)}
+              >
+                <UserPlus className="w-4 h-4 mr-1.5" />
+                አዲስ የአመራር አባል መዝግብ
+              </Button>
+            )}
           </div>
 
           {/* User Table */}
@@ -641,18 +869,6 @@ export const SuperAdminDashboard: React.FC = () => {
                                     ⭐ ሹም
                                   </button>
                                 )}
-
-                                <button
-                                  onClick={() => {
-                                    setEditingResponsibilitiesUser(u);
-                                    setSelectedResponsibilities(u.adminResponsibilities || []);
-                                  }}
-                                  disabled={actionLoading || !u.isActive}
-                                  className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-lg text-[10px] font-bold"
-                                  title="ኃላፊነቶችን መድብ"
-                                >
-                                  ኃላፊነት
-                                </button>
                               </>
                             )}
 
@@ -855,21 +1071,228 @@ export const SuperAdminDashboard: React.FC = () => {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: Create Admin / Management Account                   */}
+      {/* MODAL 1: Register and Appoint General Admin               */}
       {/* ========================================================= */}
-      {isCreateModalOpen && (
+      {isRegisterGAModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
           <form
-            onSubmit={handleCreateAccount}
+            onSubmit={handleRegisterGeneralAdmin}
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4"
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">
-                {createRole === 'ADMIN' ? 'አዲስ አስተዳዳሪ መዝግብ' : 'አዲስ የአመራር አካል መዝግብ'}
-              </h3>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="text-base font-bold text-slate-900">አዲስ ዋና አስተዳዳሪ (General Admin) መዝግብ እና ሹም</h3>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={() => setIsRegisterGAModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
+              <strong>የስልጣን ደንብ፦</strong>
+              <p>
+                ዋና አስተዳዳሪው 4ቱንም ዘርፎች (ማስታወቂያ፣ ምዝገባ፣ ኮርስ/መምህር፣ ውጤት) በበላይነት ስለሚመራ ንዑስ ኃላፊነት መምረጥ
+                አያስፈልግም። አካውንቱ እንደተመዘገበ በቀጥታ በዋና አስተዳዳሪነት ይሾማል።
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">የተጠቃሚ ስም (Username) *</label>
+                <input
+                  type="text"
+                  required
+                  value={gaUsername}
+                  onChange={(e) => setGaUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                  placeholder="ምሳሌ፦ general_admin"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">መጠሪያ ስም *</label>
+                <input
+                  type="text"
+                  required
+                  value={gaFirstName}
+                  onChange={(e) => setGaFirstName(e.target.value)}
+                  placeholder="ምሳሌ፦ ተስፋዬ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">የአባት ስም *</label>
+                <input
+                  type="text"
+                  required
+                  value={gaLastName}
+                  onChange={(e) => setGaLastName(e.target.value)}
+                  placeholder="ምሳሌ፦ ገብሬ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">የአያት ስም</label>
+                <input
+                  type="text"
+                  value={gaGrandfatherName}
+                  onChange={(e) => setGaGrandfatherName(e.target.value)}
+                  placeholder="ምሳሌ፦ ወልደየስ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ስልክ ቁጥር</label>
+                <input
+                  type="text"
+                  value={gaPhone}
+                  onChange={(e) => setGaPhone(e.target.value)}
+                  placeholder="+2519..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ኢሜይል</label>
+                <input
+                  type="email"
+                  value={gaEmail}
+                  onChange={(e) => setGaEmail(e.target.value)}
+                  placeholder="admin@haimote.org"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">የይለፍ ቃል (አማራጭ)</label>
+                <input
+                  type="password"
+                  value={gaPassword}
+                  onChange={(e) => setGaPassword(e.target.value)}
+                  placeholder="ባዶ ከሆነ ነባሪው፡ Temporary@2026"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsRegisterGAModalOpen(false)}
+              >
+                ይቅር
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={actionLoading}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border border-amber-400"
+              >
+                መዝግብ እና ሹም
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: Appoint or Transfer Existing Admin as GA         */}
+      {/* ========================================================= */}
+      {isAppointExistingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
+          <form
+            onSubmit={handleTransferOrAppointExistingAdmin}
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  {generalAdminData.isConfigured ? 'ዋና አስተዳዳሪን በሌላ ተካ' : 'ካሉት አስተዳዳሪዎች ሹም'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAppointExistingModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              በዋና አስተዳዳሪነት (General Admin) የሚሾሙትን ንቁ አስተዳዳሪ ይምረጡ፦
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">አስተዳዳሪ ምረጥ *</label>
+              <select
+                required
+                value={selectedTargetAdminId}
+                onChange={(e) => setSelectedTargetAdminId(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">-- አስተዳዳሪ ይምረጡ --</option>
+                {eligibleAdmins.map((adm) => (
+                  <option key={adm.id} value={adm.id}>
+                    {adm.firstName} {adm.lastName} (@{adm.username})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsAppointExistingModalOpen(false)}
+              >
+                ይቅር
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={actionLoading}
+                disabled={!selectedTargetAdminId}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border border-amber-400"
+              >
+                {generalAdminData.isConfigured ? 'አስተላልፍ እና ተካ' : 'ዋና አስተዳዳሪ አድርግ'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 3: Create Management Account                        */}
+      {/* ========================================================= */}
+      {isCreateManagementModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
+          <form
+            onSubmit={handleCreateManagementAccount}
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-brand-700" />
+                <h3 className="text-base font-bold text-slate-900">አዲስ የአመራር አካል (Management) መዝግብ</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateManagementModalOpen(false)}
                 className="text-slate-400 hover:text-slate-700"
               >
                 ✕
@@ -883,22 +1306,10 @@ export const SuperAdminDashboard: React.FC = () => {
                   type="text"
                   required
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="ምሳሌ፦ admin_solomon"
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                  placeholder="ምሳሌ፦ mgmt_solomon"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">ሚና *</label>
-                <select
-                  value={createRole}
-                  onChange={(e) => setCreateRole(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none"
-                >
-                  <option value="ADMIN">አስተዳዳሪ (ADMIN)</option>
-                  <option value="MANAGEMENT">የሰንበት ት/ቤት አመራር (MANAGEMENT)</option>
-                </select>
               </div>
 
               <div>
@@ -947,33 +1358,29 @@ export const SuperAdminDashboard: React.FC = () => {
                 />
               </div>
 
-              {createRole === 'MANAGEMENT' && (
-                <>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">ክፍል (Department) *</label>
-                    <input
-                      type="text"
-                      required
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      placeholder="ምሳሌ፦ የትምህርት ክፍል"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                    />
-                  </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ክፍል (Department) *</label>
+                <input
+                  type="text"
+                  required
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="ምሳሌ፦ የትምህርት ክፍል"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">የኃላፊነት መጠሪያ *</label>
-                    <input
-                      type="text"
-                      required
-                      value={positionTitle}
-                      onChange={(e) => setPositionTitle(e.target.value)}
-                      placeholder="ምሳሌ፦ የትምህርት ክፍል ዋና ኃላፊ"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                    />
-                  </div>
-                </>
-              )}
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">የኃላፊነት መጠሪያ *</label>
+                <input
+                  type="text"
+                  required
+                  value={positionTitle}
+                  onChange={(e) => setPositionTitle(e.target.value)}
+                  placeholder="ምሳሌ፦ የትምህርት ክፍል ዋና ኃላፊ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800">
@@ -985,7 +1392,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={() => setIsCreateManagementModalOpen(false)}
               >
                 ይቅር
               </Button>
@@ -998,7 +1405,7 @@ export const SuperAdminDashboard: React.FC = () => {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: Reset User Password                                */}
+      {/* MODAL 4: Reset User Password                              */}
       {/* ========================================================= */}
       {resettingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
@@ -1040,96 +1447,6 @@ export const SuperAdminDashboard: React.FC = () => {
               </Button>
               <Button type="submit" variant="primary" size="sm" loading={actionLoading}>
                 የይለፍ ቃል ቀይር
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* MODAL: Assign Admin Responsibilities                       */}
-      {/* ========================================================= */}
-      {editingResponsibilitiesUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-ethiopic">
-          <form
-            onSubmit={handleSaveResponsibilities}
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4"
-          >
-            <div className="flex items-center gap-2 text-purple-700">
-              <ShieldCheck className="w-5 h-5" />
-              <h3 className="text-base font-bold text-slate-900">የአስተዳዳሪ ኃላፊነቶች ምደባ</h3>
-            </div>
-            <p className="text-xs text-slate-600">
-              ለአስተዳዳሪ <strong>{editingResponsibilitiesUser.firstName} {editingResponsibilitiesUser.lastName}</strong> ({editingResponsibilitiesUser.username}) የሚሰጡ ኃላፊነቶችን ይምረጡ፦
-            </p>
-
-            <div className="space-y-3 pt-2">
-              {[
-                {
-                  id: 'ANNOUNCEMENT_ADMIN',
-                  label: 'የማስታወቂያ አስተዳዳሪ (Announcement Admin)',
-                  desc: 'ማስታወቂያዎችን መፍጠር፣ ማስተካከል፣ ማሰራጨት እና ማህደር ማስገባት።',
-                },
-                {
-                  id: 'USER_REGISTRATION_ADMIN',
-                  label: 'የተጠቃሚ እና የተማሪ ምዝገባ (User Registration Admin)',
-                  desc: 'ተማሪዎችን መመዝገብ፣ በጅምላ በኤክሴል ማስገባት እና ወደ ኮርሶች መመዝገብ።',
-                },
-                {
-                  id: 'COURSE_TEACHER_ADMIN',
-                  label: 'የኮርስና መምህራን አስተዳዳሪ (Course & Teacher Admin)',
-                  desc: 'የትምህርት ዘመናት፣ ምድቦች፣ ኮርሶች እና የመምህራን ኮርስ ምደባዎችን ማስተዳደር።',
-                },
-                {
-                  id: 'RESULT_MANAGEMENT_ADMIN',
-                  label: 'የውጤት ሰነዶች ተቆጣጣሪ (Result Management Admin)',
-                  desc: 'የቀረቡ የውጤት ሰነዶችን መገምገም እና በማስተካከያ ምክንያት ውድቅ ማድረግ።',
-                },
-              ].map((item) => {
-                const isChecked = selectedResponsibilities.includes(item.id);
-                return (
-                  <label
-                    key={item.id}
-                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      isChecked
-                        ? 'bg-purple-50 border-purple-300 text-purple-900'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedResponsibilities([...selectedResponsibilities, item.id]);
-                        } else {
-                          setSelectedResponsibilities(
-                            selectedResponsibilities.filter((r) => r !== item.id)
-                          );
-                        }
-                      }}
-                      className="mt-1 w-4 h-4 text-purple-600 rounded focus:ring-purple-500 border-slate-300"
-                    />
-                    <div>
-                      <div className="text-xs font-bold">{item.label}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">{item.desc}</div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditingResponsibilitiesUser(null)}
-              >
-                ይቅር
-              </Button>
-              <Button type="submit" variant="primary" size="sm" loading={actionLoading}>
-                ኃላፊነቶችን መዝግብ
               </Button>
             </div>
           </form>

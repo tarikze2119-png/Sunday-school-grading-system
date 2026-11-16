@@ -74,9 +74,36 @@ export class CourseService {
   }
 
   async updateCourse(id: string, data: Partial<CreateCourseInput>, operatorId: string) {
+    const target = await prisma.course.findUnique({ where: { id } });
+    if (!target) {
+      const error: any = new Error('ኮርሱ አልተገኘም።');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (data.code) {
+      const existing = await prisma.course.findFirst({
+        where: {
+          id: { not: id },
+          code: data.code.trim().toUpperCase(),
+        },
+      });
+      if (existing) {
+        const error: any = new Error(`የኮርስ መለያ ኮድ '${data.code}' አስቀድሞ ለሌላ ኮርስ ተመዝግቧል።`);
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
     const updated = await prisma.course.update({
       where: { id },
-      data,
+      data: {
+        ...(data.code ? { code: data.code.trim().toUpperCase() } : {}),
+        ...(data.title ? { title: data.title.trim() } : {}),
+        ...(data.amharicTitle ? { amharicTitle: data.amharicTitle.trim() } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.creditHours !== undefined ? { creditHours: Number(data.creditHours) } : {}),
+      },
     });
 
     await logAuditEvent({
@@ -85,6 +112,116 @@ export class CourseService {
       entityName: 'Course',
       entityId: id,
       details: data,
+    });
+
+    return updated;
+  }
+
+  async toggleCourseStatus(id: string, isActive: boolean, operatorId: string) {
+    const updated = await prisma.course.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await logAuditEvent({
+      userId: operatorId,
+      action: isActive ? 'ACTIVATE_COURSE' : 'DEACTIVATE_COURSE',
+      entityName: 'Course',
+      entityId: id,
+    });
+
+    return updated;
+  }
+
+  async updateCourseOffering(
+    id: string,
+    data: { termSemester?: string; status?: OfferingStatus },
+    operatorId: string
+  ) {
+    const target = await prisma.courseOffering.findUnique({
+      where: { id },
+      include: { academicYear: true },
+    });
+
+    if (!target) {
+      const error: any = new Error('የኮርስ ምደባው አልተገኘም።');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (target.academicYear.status === 'COMPLETED') {
+      const error: any = new Error('የተዘጋ (COMPLETED) የትምህርት ዘመን የኮርስ ምደባዎችን ማሻሻል አይቻልም።');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (data.termSemester && data.termSemester !== target.termSemester) {
+      const existing = await prisma.courseOffering.findUnique({
+        where: {
+          courseId_academicYearId_batchId_termSemester: {
+            courseId: target.courseId,
+            academicYearId: target.academicYearId,
+            batchId: target.batchId,
+            termSemester: data.termSemester,
+          },
+        },
+      });
+
+      if (existing && existing.id !== id) {
+        const error: any = new Error('ይህ ኮርስ አስቀድሞ ለዚህ ምድብ እና መንፈቅ ተመድቧል።');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const updated = await prisma.courseOffering.update({
+      where: { id },
+      data: {
+        ...(data.termSemester ? { termSemester: data.termSemester } : {}),
+        ...(data.status ? { status: data.status } : {}),
+      },
+    });
+
+    await logAuditEvent({
+      userId: operatorId,
+      action: 'UPDATE_COURSE_OFFERING',
+      entityName: 'CourseOffering',
+      entityId: id,
+      details: data,
+    });
+
+    return this.getOfferingById(id);
+  }
+
+  async toggleOfferingStatus(id: string, status: OfferingStatus, operatorId: string) {
+    const target = await prisma.courseOffering.findUnique({
+      where: { id },
+      include: { academicYear: true },
+    });
+
+    if (!target) {
+      const error: any = new Error('የኮርስ ምደባው አልተገኘም።');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (target.academicYear.status === 'COMPLETED') {
+      const error: any = new Error('የተዘጋ (COMPLETED) የትምህርት ዘመን የኮርስ ምደባዎችን ሁኔታ መቀየር አይቻልም።');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const updated = await prisma.courseOffering.update({
+      where: { id },
+      data: { status },
+    });
+
+    await logAuditEvent({
+      userId: operatorId,
+      action: 'TOGGLE_OFFERING_STATUS',
+      entityName: 'CourseOffering',
+      entityId: id,
+      details: { status },
     });
 
     return updated;
