@@ -14,6 +14,7 @@
 import cors from 'cors';
 
 export const PRODUCTION_ORIGIN = 'https://hymete-abrham-grading-system.vercel.app';
+export const STAGING_PREVIEW_ORIGIN = 'https://sunday-school-grading-system-git-staging-tarik19.vercel.app';
 
 export interface CorsEnvOptions {
   nodeEnv?: string;
@@ -24,10 +25,21 @@ export interface CorsEnvOptions {
 
 export function getAllowedOrigins(env: CorsEnvOptions = {}): string[] {
   const nodeEnv = env.nodeEnv ?? process.env['NODE_ENV'] ?? 'development';
-  const vercelEnv = env.vercelEnv ?? process.env['VERCEL_ENV'];
-  const isProduction = nodeEnv === 'production' || vercelEnv === 'production';
+  const rawVercelEnv = env.vercelEnv ?? process.env['VERCEL_ENV'];
+  const vercelEnv = rawVercelEnv ? rawVercelEnv.toLowerCase().trim() : undefined;
+  const isVercelProduction = vercelEnv === 'production';
+  const isVercelPreview = vercelEnv === 'preview';
+  const isStaging = nodeEnv === 'staging';
+  const isDevelopment = !isVercelProduction && nodeEnv !== 'production';
 
   const origins: string[] = [PRODUCTION_ORIGIN];
+
+  // Approved staging preview domain: allowed in preview, staging, and dev; strictly excluded in pure Production
+  if (isVercelPreview || isStaging || isDevelopment) {
+    if (!origins.includes(STAGING_PREVIEW_ORIGIN)) {
+      origins.push(STAGING_PREVIEW_ORIGIN);
+    }
+  }
 
   // 1. Explicit Staging Client URL
   const stagingUrl = env.stagingClientUrl ?? process.env['STAGING_CLIENT_URL'];
@@ -47,8 +59,9 @@ export function getAllowedOrigins(env: CorsEnvOptions = {}): string[] {
     }
   }
 
-  // 3. Local Development Origins — strictly excluded in Production
-  if (!isProduction) {
+  // 3. Local Development Origins — strictly excluded in Production and Preview
+  const isProductionLike = isVercelProduction || nodeEnv === 'production';
+  if (!isProductionLike) {
     const devOrigins = [
       'http://localhost:5173',
       'http://127.0.0.1:5173',

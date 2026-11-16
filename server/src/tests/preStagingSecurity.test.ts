@@ -7,7 +7,14 @@
  */
 
 import assert from 'node:assert';
-import { isAllowedOrigin, getAllowedOrigins, PRODUCTION_ORIGIN } from '../config/cors.config.js';
+import cors from 'cors';
+import {
+  isAllowedOrigin,
+  getAllowedOrigins,
+  PRODUCTION_ORIGIN,
+  STAGING_PREVIEW_ORIGIN,
+  corsOptions,
+} from '../config/cors.config.js';
 import {
   validateDatabaseHost,
   extractDatabaseHost,
@@ -131,6 +138,144 @@ async function runPreStagingSecurityTests(): Promise<void> {
       vercelEnv: 'production',
     });
     assert.strictEqual(withSlash, true);
+  });
+
+  test('CORS-9: Exact staging preview origin is accepted in Preview mode without explicit env var', () => {
+    const allowed = isAllowedOrigin(STAGING_PREVIEW_ORIGIN, {
+      nodeEnv: 'production',
+      vercelEnv: 'preview',
+    });
+    assert.strictEqual(allowed, true);
+  });
+
+  test('CORS-10: Exact staging preview origin is accepted in local staging mode', () => {
+    const allowed = isAllowedOrigin(STAGING_PREVIEW_ORIGIN, {
+      nodeEnv: 'staging',
+      vercelEnv: undefined,
+    });
+    assert.strictEqual(allowed, true);
+  });
+
+  test('CORS-11: Exact staging preview origin is strictly REJECTED in pure production', () => {
+    const allowed = isAllowedOrigin(STAGING_PREVIEW_ORIGIN, {
+      nodeEnv: 'production',
+      vercelEnv: 'production',
+    });
+    assert.strictEqual(allowed, false);
+  });
+
+  test('CORS-12: Production origin remains accepted in Preview mode', () => {
+    const allowed = isAllowedOrigin(PRODUCTION_ORIGIN, {
+      nodeEnv: 'production',
+      vercelEnv: 'preview',
+    });
+    assert.strictEqual(allowed, true);
+  });
+
+  test('CORS-13: Localhost origins are strictly REJECTED in Preview mode', () => {
+    const allowed = isAllowedOrigin('http://localhost:5173', {
+      nodeEnv: 'production',
+      vercelEnv: 'preview',
+    });
+    assert.strictEqual(allowed, false);
+  });
+
+  test('CORS-14: corsOptions mandates credentials: true and exact origins', () => {
+    assert.strictEqual(corsOptions.credentials, true);
+  });
+
+  test('CORS-15: Middleware grants CORS headers and credentials for accepted staging origin in Preview', () => {
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.VERCEL_ENV = 'preview';
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const middleware = cors(corsOptions);
+      const headers: Record<string, string> = {};
+      const req = {
+        method: 'GET',
+        headers: {
+          origin: STAGING_PREVIEW_ORIGIN,
+        },
+      };
+      const res = {
+        setHeader: (name: string, value: string) => {
+          headers[name.toLowerCase()] = value;
+        },
+        getHeader: (name: string) => headers[name.toLowerCase()],
+      };
+
+      let nextCalled = false;
+      let nextError: any = null;
+      middleware(req as any, res as any, (err?: any) => {
+        nextCalled = true;
+        nextError = err;
+      });
+
+      assert.strictEqual(nextCalled, true);
+      assert.strictEqual(nextError, undefined);
+      assert.strictEqual(headers['access-control-allow-origin'], STAGING_PREVIEW_ORIGIN);
+      assert.strictEqual(headers['access-control-allow-credentials'], 'true');
+    } finally {
+      if (prevVercelEnv === undefined) {
+        delete process.env.VERCEL_ENV;
+      } else {
+        process.env.VERCEL_ENV = prevVercelEnv;
+      }
+      if (prevNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = prevNodeEnv;
+      }
+    }
+  });
+
+  test('CORS-16: Untrusted origin request receives rejection error and no allow-origin header', () => {
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.VERCEL_ENV = 'preview';
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const middleware = cors(corsOptions);
+      const headers: Record<string, string> = {};
+      const req = {
+        method: 'GET',
+        headers: {
+          origin: 'https://evil-untrusted-site.com',
+        },
+      };
+      const res = {
+        setHeader: (name: string, value: string) => {
+          headers[name.toLowerCase()] = value;
+        },
+        getHeader: (name: string) => headers[name.toLowerCase()],
+      };
+
+      let nextCalled = false;
+      let nextError: any = null;
+      middleware(req as any, res as any, (err?: any) => {
+        nextCalled = true;
+        nextError = err;
+      });
+
+      assert.strictEqual(nextCalled, true);
+      assert.ok(nextError instanceof Error);
+      assert.match(nextError.message, /CORS origin denied by policy/);
+      assert.strictEqual(headers['access-control-allow-origin'], undefined);
+    } finally {
+      if (prevVercelEnv === undefined) {
+        delete process.env.VERCEL_ENV;
+      } else {
+        process.env.VERCEL_ENV = prevVercelEnv;
+      }
+      if (prevNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = prevNodeEnv;
+      }
+    }
   });
 
   // =========================================================================
